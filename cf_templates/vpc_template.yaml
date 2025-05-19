@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "VPC structure"
+
+Resources:
+
+  baseVPC: 
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/20
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: "Name"
+          Value: "baseVPC"
+
+  pubA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: eu-west-2a
+      CidrBlock: 10.10.1.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: "Name"
+          Value: "pubA"
+      VpcId: !Ref baseVPC
+
+  pubB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: eu-west-2b
+      CidrBlock: 10.10.2.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: "Name"
+          Value: "pubB"
+      VpcId: !Ref baseVPC
+
+  prvA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: eu-west-2a
+      CidrBlock: 10.10.3.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: "Name"
+          Value: "prvA"
+      VpcId: !Ref baseVPC
+
+  prvB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: eu-west-2b
+      CidrBlock: 10.10.4.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: "Name"
+          Value: "prvB"
+      VpcId: !Ref baseVPC
+
+  myInternetGw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: "Name"
+          Value: "Internet Gateway"
+
+  IgwAttachement:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref myInternetGw
+      VpcId: !Ref baseVPC
+
+  pubRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags: 
+        - Key: "Name"
+          Value: "pubRT"
+      VpcId: !Ref baseVPC
+
+  routeToIgw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref myInternetGw
+      RouteTableId: !Ref pubRT
+
+  pubASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref pubRT
+      SubnetId: !Ref pubA
+
+  pubBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref pubRT
+      SubnetId: !Ref pubB
