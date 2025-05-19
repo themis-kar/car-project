@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "VPC structure"
+Description: VPC structure
 
 Resources:
 
@@ -11,8 +11,8 @@ Resources:
       EnableDnsSupport: true
       InstanceTenancy: default
       Tags:
-        - Key: "Name"
-          Value: "baseVPC"
+        - Key: Name
+          Value: baseVPC
 
   pubA:
     Type: AWS::EC2::Subnet
@@ -23,8 +23,8 @@ Resources:
       EnableDns64: false
       MapPublicIpOnLaunch: true
       Tags: 
-        - Key: "Name"
-          Value: "pubA"
+        - Key: Name
+          Value: pubA
       VpcId: !Ref baseVPC
 
   pubB:
@@ -36,8 +36,8 @@ Resources:
       EnableDns64: false
       MapPublicIpOnLaunch: true
       Tags: 
-        - Key: "Name"
-          Value: "pubB"
+        - Key: Name
+          Value: pubB
       VpcId: !Ref baseVPC
 
   prvA:
@@ -49,8 +49,8 @@ Resources:
       EnableDns64: false
       MapPublicIpOnLaunch: true
       Tags: 
-        - Key: "Name"
-          Value: "prvA"
+        - Key: Name
+          Value: prvA
       VpcId: !Ref baseVPC
 
   prvB:
@@ -62,16 +62,16 @@ Resources:
       EnableDns64: false
       MapPublicIpOnLaunch: true
       Tags: 
-        - Key: "Name"
-          Value: "prvB"
+        - Key: Name
+          Value: prvB
       VpcId: !Ref baseVPC
 
   myInternetGw:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags: 
-        - Key: "Name"
-          Value: "Internet Gateway"
+        - Key: Name
+          Value: Internet Gateway
 
   IgwAttachement:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -83,8 +83,8 @@ Resources:
     Type: AWS::EC2::RouteTable
     Properties:
       Tags: 
-        - Key: "Name"
-          Value: "pubRT"
+        - Key: Name
+          Value: pubRT
       VpcId: !Ref baseVPC
 
   routeToIgw:
@@ -105,3 +105,35 @@ Resources:
     Properties:
       RouteTableId: !Ref pubRT
       SubnetId: !Ref pubB
+
+Outputs:
+
+  baseVPCId:
+    Description: The id of the VPC resource
+    Value: !Ref baseVPC
+    Export:
+      Name: !Join [":", [!Ref "AWS::StackName", VPC-Id]]
+
+  pubAId:
+    Description: The id of public subnet A
+    Value: !Ref pubA
+    Export:
+      Name: !Join [":", [!Ref "AWS::StackName", pubA-Id]]
+
+  pubBId:
+    Description: The id of public subnet B
+    Value: !Ref pubB
+    Export:
+      Name: !Join [":", [!Ref "AWS::StackName", pubB-Id]]
+
+  prvAId:
+    Description: The id of private subnet A
+    Value: !Ref prvA
+    Export:
+      Name: !Join [":", [!Ref "AWS::StackName", prvA-Id]]
+
+  prvBId:
+    Description: The id of private subnet B
+    Value: !Ref prvB
+    Export:
+      Name: !Join [":", [!Ref "AWS::StackName", prvB-Id]]
