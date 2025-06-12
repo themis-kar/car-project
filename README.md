@@ -3,8 +3,7 @@ A basic CRUD project utilizing AWS services
 
 --- Car Website ---
 
-Users are presented with a front end website of a car database
-Allowed user actions:
+Users can perform the following actions:
 1. Add single car in the database
 2. Search cars by attribute
 3. View all cars
@@ -15,9 +14,11 @@ Allowed user actions:
 
 Users
 |
+Cloudfront (delivering static assets)
+|
 S3 (hosting static websites)
 |
-API Gateway (catching each request)
+API Gateway (endpoint for API request)
 |
 ALB (routing requests to different instances)
 |
@@ -33,6 +34,6 @@ Car table: Registration Plate (primary key), Manufacturer, Model, Year, Colour, 
 
 --- Files required ---
 
-Folder 1: html, css, javascript files for S3
-Folder 2: python scripts for Flask, launch shell scripts
-Folder 3: CloudFormation yaml templates (S3 & API Gateway, VPC, ELB & ASG, RDS)
+Folder 1: Frontend (html, css, javascript files for S3)
+Folder 2: Backend (python scripts for Flask, configuration shell scripts)
+Folder 3: CloudFormation yaml templates

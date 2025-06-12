@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS instance
+
+Parameters:
+  MasterUsername:
+    Description: "The database admin account username"
+    Type: String
+    MinLength: 4
+    MaxLength: 16
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9]*"
+    ConstraintDescription: "Must be 4-16 characters and contain only alphanumeric characters."
+
+  MasterUserPassword:
+    Description: "The database admin account password"
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+    AllowedPattern: "[a-zA-Z0-9@]*"
+    ConstraintDescription: "Must be 8-41 characters and contain only alphanumeric characters and @."
+
+# create a read replica - same resource type
+
+Resources:
+
+  mainDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      AvailabilityZone: eu-west-2a
+      BackupRetentionPeriod: 1
+      DBInstanceClass: db.t4g.micro
+      DBInstanceIdentifier: car2025project
+      DBSubnetGroupName: !Ref myDBsubnets
+      DeleteAutomatedBackups: true
+      Engine: postgres
+      EngineLifecycleSupport: open-source-rds-extended-support-disabled
+      EngineVersion: "17.2"
+      MasterUsername: !Ref MasterUsername
+      MasterUserPassword: !Ref MasterUserPassword
+      MultiAZ: false
+      NetworkType: IPV4
+      Port: 5432
+      PubliclyAccessible: false
+      StorageType: gp2
+
+  myDBsubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Dedicated subnets for DB
+      SubnetIds: 
+        - !ImportValue VPCstructure:prvA-Id
+        - !ImportValue VPCstructure:prvB-Id
+      Tags: 
+        - Key: Name
+          Value: myDBsubnetGroup
