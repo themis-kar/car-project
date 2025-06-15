@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: VPC structure
-# TODO - build security groups
+
+# Resources: VPC, public & private subnets, route table, IGW, DB SG, EC2 SG
 
 Resources:
 
@@ -25,7 +26,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: pubA
+          Value: pubSubA
       VpcId: !Ref baseVPC
 
   pubB:
@@ -38,7 +39,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: pubB
+          Value: pubSubB
       VpcId: !Ref baseVPC
 
   prvA:
@@ -51,7 +52,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: prvA
+          Value: privSubA
       VpcId: !Ref baseVPC
 
   prvB:
@@ -64,7 +65,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: prvB
+          Value: privSubB
       VpcId: !Ref baseVPC
 
   myInternetGw:
@@ -85,7 +86,7 @@ Resources:
     Properties:
       Tags: 
         - Key: Name
-          Value: pubRT
+          Value: publicRouteTable
       VpcId: !Ref baseVPC
 
   routeToIgw:
@@ -107,34 +108,79 @@ Resources:
       RouteTableId: !Ref pubRT
       SubnetId: !Ref pubB
 
+  DBsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for the Multi-AZ DB
+      GroupName: postgres-secGroup
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref EC2secGroup
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+      VpcId: !Ref baseVPC
+
+  EC2secGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EC2 instances
+      GroupName: ec2-secGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.10.0.0/16
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 81.132.157.62/32
+      VpcId: !Ref baseVPC
+
 Outputs:
 
   baseVPCId:
     Description: The id of the VPC resource
     Value: !Ref baseVPC
     Export:
-      Name: !Join [":", [!Ref "AWS::StackName", VPC-Id]]
+      Name: baseVPC-Id
 
   pubAId:
     Description: The id of public subnet A
     Value: !Ref pubA
     Export:
-      Name: !Join [":", [!Ref "AWS::StackName", pubA-Id]]
+      Name: pubSubA-Id
 
   pubBId:
     Description: The id of public subnet B
     Value: !Ref pubB
     Export:
-      Name: !Join [":", [!Ref "AWS::StackName", pubB-Id]]
+      Name: pubSubB-Id
 
   prvAId:
     Description: The id of private subnet A
     Value: !Ref prvA
     Export:
-      Name: !Join [":", [!Ref "AWS::StackName", prvA-Id]]
+      Name: privSubA-Id
 
   prvBId:
     Description: The id of private subnet B
     Value: !Ref prvB
     Export:
-      Name: !Join [":", [!Ref "AWS::StackName", prvB-Id]]
+      Name: privSubB-Id
+
+  DBsecurityGroup:
+    Description: Security group for DB
+    Value: !Ref DBsecGroup
+    Export:
+      Name: DBsecGroup-Id
+  
+  EC2securityGroup:
+    Description: Security group for EC2 instances
+    Value: !Ref EC2secGroup
+    Export:
+      Name: EC2secGroup-Id

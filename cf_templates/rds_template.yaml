@@ -17,9 +17,7 @@ Parameters:
     MinLength: 8
     MaxLength: 41
     AllowedPattern: "[a-zA-Z0-9@]*"
-    ConstraintDescription: "Must be 8-41 characters and contain only alphanumeric characters and @."
-
-# create a read replica - same resource type
+    ConstraintDescription: "Must be 8-41 characters and contain alphanumeric characters or @."
 
 Resources:
 
@@ -27,30 +25,29 @@ Resources:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 20
-      AvailabilityZone: eu-west-2a
-      BackupRetentionPeriod: 1
+      BackupRetentionPeriod: 2
       DBInstanceClass: db.t4g.micro
-      DBInstanceIdentifier: car2025project
+      DBInstanceIdentifier: car-project-2025
       DBSubnetGroupName: !Ref myDBsubnets
       DeleteAutomatedBackups: true
       Engine: postgres
       EngineLifecycleSupport: open-source-rds-extended-support-disabled
-      EngineVersion: "17.2"
+      EngineVersion: "17.4"
       MasterUsername: !Ref MasterUsername
       MasterUserPassword: !Ref MasterUserPassword
-      MultiAZ: false
+      MultiAZ: true
       NetworkType: IPV4
       Port: 5432
       PubliclyAccessible: false
       StorageType: gp2
+      VPCSecurityGroups:
+        - !ImportValue DBsecGroup-Id
 
   myDBsubnets:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: Dedicated subnets for DB
+      DBSubnetGroupDescription: Private subnets used for Multi-AZ DB
+      DBSubnetGroupName: myDB-subnet-group
       SubnetIds: 
-        - !ImportValue VPCstructure:prvA-Id
-        - !ImportValue VPCstructure:prvB-Id
-      Tags: 
-        - Key: Name
-          Value: myDBsubnetGroup
+        - !ImportValue privSubA-Id
+        - !ImportValue privSubB-Id
