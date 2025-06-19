@@ -30,10 +30,21 @@ RDS (multi-AZ database deployment)
 
 --- Database schema ---
 
-Car table: Registration Plate (primary key), Manufacturer, Model, Year, Colour, Mileage
+Car table: plate (primary key), make, model, year, colour, mileage(km)
 
 --- Files required ---
 
 Folder 1: Frontend (html, css, javascript files for S3)
-Folder 2: Backend (python scripts for Flask, configuration shell scripts)
+Folder 2: Backend (ec2_user_data.sh, Flask scripts, deployment script)
 Folder 3: CloudFormation yaml templates
+
+Deployment order: VPC -> RDS -> ASG -> ELB -> API Gateway
+EC2 user data shouldn't initiate the DB to avoid conflicts
+
+DB deployment CloudFormation Template:
+- (DONE) Secrets Manager
+- (DONE) DB Subnet Group
+- (DONE) DB Instance
+- (TBC) IAM execution role for Lambda 
+- (TODO) Lambda function to initiate DB
+- [Outputs]: rds-endpoint

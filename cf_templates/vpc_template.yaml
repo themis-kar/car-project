@@ -1,7 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: VPC structure
+# VPC, public & private subnets, route table, IGW, DB SG, EC2 SG
 
-# Resources: VPC, public & private subnets, route table, IGW, DB SG, EC2 SG
+Parameters:
+
+  LocalIpAddress:
+    Description: "The IP CIDR range allowed to SSH into the instance"
+    Type: String
+    Default: 3.8.37.24/29
 
 Resources:
 
@@ -20,7 +26,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
-      AvailabilityZone: eu-west-2a
+      AvailabilityZone: !Select [0, !GetAZs ""] 
       CidrBlock: 10.10.1.0/24
       EnableDns64: false
       MapPublicIpOnLaunch: true
@@ -33,7 +39,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
-      AvailabilityZone: eu-west-2b
+      AvailabilityZone: !Select [1, !GetAZs ""]
       CidrBlock: 10.10.2.0/24
       EnableDns64: false
       MapPublicIpOnLaunch: true
@@ -46,7 +52,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
-      AvailabilityZone: eu-west-2a
+      AvailabilityZone: !Select [0, !GetAZs ""]
       CidrBlock: 10.10.3.0/24
       EnableDns64: false
       MapPublicIpOnLaunch: true
@@ -59,7 +65,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
-      AvailabilityZone: eu-west-2b
+      AvailabilityZone: !Select [1, !GetAZs ""]
       CidrBlock: 10.10.4.0/24
       EnableDns64: false
       MapPublicIpOnLaunch: true
@@ -125,20 +131,11 @@ Resources:
     Properties:
       GroupDescription: Security Group for EC2 instances
       GroupName: ec2-secGroup
-      SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 10.10.0.0/16
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 81.132.157.62/32
+          CidrIp: !Ref LocalIpAddress
       VpcId: !Ref baseVPC
 
 Outputs:

@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: temp EC2 template until ASG
+
+Parameters:
+
+  LatestAmiId:
+    Description: "AMI for EC2"
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
+Resources:
+
+  myInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: labKey
+      SubnetId: !ImportValue pubSubA-Id
+      SecurityGroupIds:
+        - !ImportValue EC2secGroup-Id
+      IamInstanceProfile: !Ref myInstanceProfile
+  
+  myInstanceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: EC2-RDS-role
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: EC2-IamAuth-RDS
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: IamRdsAccess
+                Effect: Allow
+                Action: "rds-db:connect"
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/*'
+  
+  myInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      InstanceProfileName: Ec2-Instance-Profile
+      Roles:
+        - !Ref myInstanceIAMRole
+
+#commands required for EC2 setup
+# dnf -y install postgresql17
+
+# wget https://truststore.pki.rds.amazonaws.com/eu-west-2/eu-west-2-bundle.pem
+
+#PGPASSWORD=pass123word456 psql " host=car-project-2025.crusuyka41td.eu-west-2.rds.amazonaws.com \
+#port=5432 \
+#user=master_user \
+#dbname=postgres \
+#sslmode=verify-full \
+#sslrootcert=./eu-west-2-bundle.pem" \ 
+#-c "CREATE USER $IAM_USER WITH LOGIN; GRANT rds_iam TO $IAM_USER;"
+
+#export PGPASSWORD=$(aws rds generate-db-auth-token \
+  #--hostname <rds-endpoint> \
+  #--port 5432 \
+  #--region <your-region> \
+  #--username <db-iam-user>)
