@@ -20,6 +20,14 @@ Resources:
       SecurityGroupIds:
         - !ImportValue EC2secGroup-Id
       IamInstanceProfile: !Ref myInstanceProfile
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              echo "DB endpoint is: ${DBEndpoint}" > /home/ec2-user/db.txt
+              # More logic can go here
+            - DBEndpoint: !ImportValue DBsecGroup-Id 
   
   myInstanceIAMRole:
     Type: "AWS::IAM::Role"

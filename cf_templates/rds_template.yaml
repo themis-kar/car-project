@@ -81,11 +81,6 @@ Resources:
                 Action:
                   - rds:DescribeDBInstances #use to check if DB running
                 Resource: !GetAtt mainDBInstance.DBInstanceArn
-              - Sid: CloudWatchAccess
-                Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
+      ManagedPolicyArns: arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
   
+  #https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html
