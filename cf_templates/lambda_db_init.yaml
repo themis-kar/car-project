@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Initialization of RDS DB using Lambda
+
+Parameters:
+
+  LambdaLayerArn:
+    Description: "The ARN of the Lambda Layer that contains psycopg2"
+    Type: String
+    Default: arn:aws:lambda:eu-west-2:495599734937:layer:psycopg2-python312:1
+
+Resources:
+
+  myLambdaIamRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: Lambda-exec-role
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: SM-KMS-RDS-Access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: SecretsAccess
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !ImportValue postgres-SecretArn
+              - Sid: KmsAccess
+                Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:Decrypt
+                Resource: "*"
+              - Sid: RdsHealthCheck
+                Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances #use to check if DB running
+                Resource: !ImportValue postgres-InstanceArn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+  myDbInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: postgresInit
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          DB_HOST: !ImportValue postgresEndpoint
+          SECRET_ARN: !ImportValue postgres-SecretArn
+          DB_NAME: postgres
+      Code:
+        ZipFile: | #code goes here
+          import json
+          import boto3
+          import psycopg2
+
+          def lambda_handler(event, context):            
+            # The runtime converts the event object to a Python dictionary
+
+            return {
+                "statusCode": 200,
+                "body": f"Successfully wrote item"
+            }
+      Description: 'Function that initiliazes the RDS PostgreSQL DB'
+      EphemeralStorage:
+        Size: 512
+      Handler: index.lambda_handler
+      MemorySize: 128
+      PackageType: Zip
+      Layers:
+        - !Ref LambdaLayerArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        SystemLogLevel: INFO
+      RecursiveLoop: Terminate
+      Role: !GetAtt myLambdaIamRole.Arn
+      Runtime: python3.12
+      Timeout: 120
+      VpcConfig: 
+        Ipv6AllowedForDualStack: false
+        SecurityGroupIds:
+          - !ImportValue EC2secGroup-Id
+        SubnetIds:
+          - !ImportValue privSubA-Id
+  
+  #DbInitTrigger:
+    #Type: AWS::CloudFormation::CustomResource
+    #DependsOn: myDbInitFunction
+    #Properties:
+      #ServiceTimeout: 180
+      #ServiceToken: !GetAtt myDbInitFunction.Arn
+
+  NatGwForLambda:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      ConnectivityType: public
+      SubnetId: !ImportValue pubSubA-Id
+      Tags:
+        - Key: Name
+          Value: tempNATgateway
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  RouteToNatGw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGwForLambda
+      RouteTableId: !ImportValue privRT-Id

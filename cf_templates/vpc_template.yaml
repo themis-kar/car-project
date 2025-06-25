@@ -48,7 +48,7 @@ Resources:
           Value: pubSubB
       VpcId: !Ref baseVPC
 
-  prvA:
+  privA:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -61,7 +61,7 @@ Resources:
           Value: privSubA
       VpcId: !Ref baseVPC
 
-  prvB:
+  privB:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -113,6 +113,26 @@ Resources:
     Properties:
       RouteTableId: !Ref pubRT
       SubnetId: !Ref pubB
+  
+  privRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: privateRouteTable
+      VpcId: !Ref baseVPC
+
+  privASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref privRT
+      SubnetId: !Ref privA
+
+  privBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref privRT
+      SubnetId: !Ref privB
 
   DBsecGroup:
     Type: AWS::EC2::SecurityGroup
@@ -145,6 +165,12 @@ Outputs:
     Value: !Ref baseVPC
     Export:
       Name: baseVPC-Id
+  
+  privRTId:
+    Description: The id of the RT for private subnets
+    Value: !Ref privRT
+    Export:
+      Name: privRT-Id
 
   pubAId:
     Description: The id of public subnet A
@@ -158,15 +184,15 @@ Outputs:
     Export:
       Name: pubSubB-Id
 
-  prvAId:
+  privAId:
     Description: The id of private subnet A
-    Value: !Ref prvA
+    Value: !Ref privA
     Export:
       Name: privSubA-Id
 
-  prvBId:
+  privBId:
     Description: The id of private subnet B
-    Value: !Ref prvB
+    Value: !Ref privB
     Export:
       Name: privSubB-Id
 

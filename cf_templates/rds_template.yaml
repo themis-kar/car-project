@@ -3,20 +3,8 @@ Description: RDS instance creation and init
 
 Resources:
 
-  #DBSecret:
-    #Type: AWS::SecretsManager::Secret
-    #Properties:
-      #Name: /rds/postgresql/master
-      #Description: RDS PostgreSQL master credentials
-      #GenerateSecretString:
-        #SecretStringTemplate: '{"username":"master_user"}'
-        #GenerateStringKey: password
-        #ExcludeCharacters: '"@/\-+$*'
-        #PasswordLength: 12
-
   mainDBInstance:
     Type: AWS::RDS::DBInstance
-    DependsOn: DBSecret
     Properties:
       AllocatedStorage: 20
       BackupRetentionPeriod: 1
@@ -29,10 +17,10 @@ Resources:
       Engine: postgres
       EngineLifecycleSupport: open-source-rds-extended-support-disabled
       EngineVersion: "17.4"
-      #MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecret}::username}}'
+      ManageMasterUserPassword: true
       MasterUsername: master_user
-      #MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecret}::password}}' 
-      MasterUserPassword: password123 #hardcoded for cost
+      MasterUserSecret:
+        KmsKeyId: 'alias/aws/secretsmanager'
       MultiAZ: false #temporarily disabling due to cost
       NetworkType: IPV4
       Port: 5432
@@ -51,36 +39,22 @@ Resources:
         - !ImportValue privSubA-Id
         - !ImportValue privSubB-Id
 
-  myLambdaIAMRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      RoleName: Lambda-exec-role
-      MaxSessionDuration: 14400
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies: 
-        - PolicyName: SM-and-RDS-access
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Sid: SecretsAccess
-                Effect: Allow
-                Action:
-                  - secretsmanager:GetSecretValue
-                  - secretsmanager:DescribeSecret
-                Resource: !Ref DBSecret
-              - Sid: RdsHealthCheck
-                Effect: Allow
-                Action:
-                  - rds:DescribeDBInstances #use to check if DB running
-                Resource: !GetAtt mainDBInstance.DBInstanceArn
-      ManagedPolicyArns: arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+Outputs:
+
+  DbHostname:
+    Description: The hostname of the RDS instance
+    Value: !GetAtt mainDBInstance.Endpoint.Address
+    Export:
+      Name: postgresEndpoint
   
-  #https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html
+  DbSecretArn:
+    Description: The ARN of the DB secret in Secrets Manager
+    Value: !GetAtt mainDBInstance.MasterUserSecret.SecretArn
+    Export:
+      Name: postgres-SecretArn
+
+  DbInstanceArn:
+    Description: The ARN of the DB instance
+    Value: !GetAtt mainDBInstance.DBInstanceArn
+    Export:
+      Name: postgres-InstanceArn
