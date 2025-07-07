@@ -38,14 +38,5 @@ Folder 1: Frontend (html, css, javascript files for S3)
 Folder 2: Backend (ec2_user_data.sh, Flask scripts, deployment script)  
 Folder 3: CloudFormation yaml templates  
 
-Deployment order: VPC -> RDS -> ASG -> ELB -> API Gateway  
+Deployment order: VPC -> RDS -> Lambda for RDS init -> ELB & API Gateway -> ASG
 
-DB deployment CloudFormation Template:  
-- (DONE) Secrets Manager
-- (DONE) DB Subnet Group
-- (DONE) DB Instance
-- (TBC) IAM execution role for Lambda 
-- (TODO) Lambda function to initiate DB
-- [Outputs]: rds-endpoint
-
-Lambda for bootstrapping, code logic:

@@ -36,8 +36,8 @@ Resources:
       DBSubnetGroupDescription: Private subnets used for Multi-AZ DB
       DBSubnetGroupName: myDB-subnet-group
       SubnetIds: 
-        - !ImportValue privSubA-Id
-        - !ImportValue privSubB-Id
+        - !ImportValue dbSubA-Id
+        - !ImportValue dbSubB-Id
 
 Outputs:
 

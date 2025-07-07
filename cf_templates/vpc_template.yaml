@@ -21,8 +21,8 @@ Resources:
       Tags:
         - Key: Name
           Value: baseVPC
-
-  pubA:
+  # web tier subnets
+  webA:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -32,10 +32,10 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: pubSubA
+          Value: webSubA
       VpcId: !Ref baseVPC
 
-  pubB:
+  webB:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -45,10 +45,10 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: pubSubB
+          Value: webSubB
       VpcId: !Ref baseVPC
-
-  privA:
+  # app tier subnets
+  appA:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -58,10 +58,10 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: privSubA
+          Value: appSubA
       VpcId: !Ref baseVPC
 
-  privB:
+  appB:
     Type: AWS::EC2::Subnet
     Properties:
       AssignIpv6AddressOnCreation: false
@@ -71,9 +71,35 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: 
         - Key: Name
-          Value: privSubB
+          Value: appSubB
+      VpcId: !Ref baseVPC
+  # DB tier subnets
+  dbA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.10.5.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: dbSubA
       VpcId: !Ref baseVPC
 
+  dbB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.10.6.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: dbSubB
+      VpcId: !Ref baseVPC
+  # internet gateway and attachment to VPC
   myInternetGw:
     Type: AWS::EC2::InternetGateway
     Properties:
@@ -86,58 +112,82 @@ Resources:
     Properties:
       InternetGatewayId: !Ref myInternetGw
       VpcId: !Ref baseVPC
-
-  pubRT:
+  # route table for public subnets
+  webRT:
     Type: AWS::EC2::RouteTable
     Properties:
       Tags: 
         - Key: Name
-          Value: publicRouteTable
+          Value: webRouteTable
       VpcId: !Ref baseVPC
-
+ # route for public subnets to IGW
   routeToIgw:
     Type: AWS::EC2::Route
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref myInternetGw
-      RouteTableId: !Ref pubRT
+      RouteTableId: !Ref webRT
 
-  pubASubAssoc:
+  webASubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref pubRT
-      SubnetId: !Ref pubA
+      RouteTableId: !Ref webRT
+      SubnetId: !Ref webA
 
-  pubBSubAssoc:
+  webBSubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref pubRT
-      SubnetId: !Ref pubB
-  
-  privRT:
+      RouteTableId: !Ref webRT
+      SubnetId: !Ref webB
+  # route table for private subnets (placeholder)
+  appRT:
     Type: AWS::EC2::RouteTable
     Properties:
-      Tags: 
+      Tags:
         - Key: Name
-          Value: privateRouteTable
+          Value: appRouteTable
       VpcId: !Ref baseVPC
 
-  privASubAssoc:
+  appASubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref privRT
-      SubnetId: !Ref privA
+      RouteTableId: !Ref appRT
+      SubnetId: !Ref appA
 
-  privBSubAssoc:
+  appBSubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref privRT
-      SubnetId: !Ref privB
-
+      RouteTableId: !Ref appRT
+      SubnetId: !Ref appB
+  
+  ## Elastic IP required for NAT Gateway
+  #NatEIP:
+    #Type: AWS::EC2::EIP
+    #Properties:
+      #Domain: vpc
+  ## NAT Gateway in public subnet with EIP
+  #NatGw:
+    #Type: AWS::EC2::NatGateway
+    #Properties:
+      #AllocationId: !GetAtt NatEIP.AllocationId
+      #ConnectivityType: public
+      #SubnetId: !Ref webA
+      #Tags:
+        #- Key: Name
+          #Value: NAT-Gateway
+  ## add route for private subnets to NAT GW
+  #RouteToNatGw:
+    #Type: AWS::EC2::Route
+    #Properties:
+      #DestinationCidrBlock: 0.0.0.0/0
+      #NatGatewayId: !Ref NatGw
+      #RouteTableId: !Ref appRT
+  
+  # security group for RDS instance
   DBsecGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security Group for the Multi-AZ DB
+      GroupDescription: Security Group for the Multi-AZ RDS Instance
       GroupName: postgres-secGroup
       SecurityGroupIngress:
         - SourceSecurityGroupId: !Ref EC2secGroup
@@ -145,17 +195,37 @@ Resources:
           FromPort: 5432
           ToPort: 5432
       VpcId: !Ref baseVPC
-
+  # security group for EC2 and Lambda
   EC2secGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for EC2 instances
       GroupName: ec2-secGroup
       SecurityGroupIngress:
-        - IpProtocol: tcp
+        - CidrIp: !Ref LocalIpAddress
+          IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: !Ref LocalIpAddress
+        - SourceSecurityGroupId: !Ref ALBsecGroup
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      VpcId: !Ref baseVPC
+  # security group for ALB
+  ALBsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for ALB
+      GroupName: alb-secGroup
+      SecurityGroupIngress:
+        - CidrIp: !GetAtt appA.CidrBlock
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: !GetAtt appB.CidrBlock
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
       VpcId: !Ref baseVPC
 
 Outputs:
@@ -165,39 +235,45 @@ Outputs:
     Value: !Ref baseVPC
     Export:
       Name: baseVPC-Id
-  
-  privRTId:
-    Description: The id of the RT for private subnets
-    Value: !Ref privRT
-    Export:
-      Name: privRT-Id
 
-  pubAId:
-    Description: The id of public subnet A
-    Value: !Ref pubA
+  webAId:
+    Description: The id of web tier subnet A
+    Value: !Ref webA
     Export:
-      Name: pubSubA-Id
+      Name: webSubA-Id
 
-  pubBId:
-    Description: The id of public subnet B
-    Value: !Ref pubB
+  webBId:
+    Description: The id of web tier subnet B
+    Value: !Ref webB
     Export:
-      Name: pubSubB-Id
+      Name: webSubB-Id
 
-  privAId:
-    Description: The id of private subnet A
-    Value: !Ref privA
+  appAId:
+    Description: The id of app tier subnet A
+    Value: !Ref appA
     Export:
-      Name: privSubA-Id
+      Name: appSubA-Id
 
-  privBId:
-    Description: The id of private subnet B
-    Value: !Ref privB
+  appBId:
+    Description: The id of app tier subnet B
+    Value: !Ref appB
     Export:
-      Name: privSubB-Id
+      Name: appSubB-Id
+
+  dbAId:
+    Description: The id of DB tier subnet A
+    Value: !Ref dbA
+    Export:
+      Name: dbSubA-Id
+
+  dbBId:
+    Description: The id of DB tier subnet B
+    Value: !Ref dbB
+    Export:
+      Name: dbSubB-Id
 
   DBsecurityGroup:
-    Description: Security group for DB
+    Description: Security group for RDS instance
     Value: !Ref DBsecGroup
     Export:
       Name: DBsecGroup-Id
@@ -207,3 +283,9 @@ Outputs:
     Value: !Ref EC2secGroup
     Export:
       Name: EC2secGroup-Id
+
+  ALBsecurityGroup:
+    Description: Security group for Application Load Balancer
+    Value: !Ref ALBsecGroup
+    Export:
+      Name: ALBsecGroup-Id

@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Auto Scaling Group creation
+
+Parameters:
+
+  LatestAmiId:
+    Description: "AMI for EC2"
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
+Resources:
+  # Order: IAM Role, Instance Profile, Launch Template, ASG, Scaling Policy
+  myInstanceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: EC2-RDS-role
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: EC2-IamAuth-RDS
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: IamRdsAccess
+                Effect: Allow
+                Action: "rds-db:connect"
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/*'
+  
+  myInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      InstanceProfileName: Ec2-Instance-Profile
+      Roles:
+        - !Ref myInstanceIAMRole
+
+  myAppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: EC2-template-for-car-project
+      LaunchTemplateData:
+        DisableApiTermination: true
+        IamInstanceProfile:
+          Name: !Ref myInstanceProfile
+        ImageId: !Ref LatestAmiId
+        InstanceType: t2.micro
+        KeyName: labKey
+        SecurityGroupIds:
+          - !ImportValue EC2secGroup-Id
+        UserData:
+          Fn::Base64:
+            Fn::Sub:
+              - |
+                #!/bin/bash -xe
+
+                export DB_HOST="${DbHost}"
+                # More logic can go here
+                dnf -y install postgresql17
+
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource myInstance --region ${AWS::Region}
+              - DbHost: !ImportValue postgres-InstanceArn
+        # wget https://truststore.pki.rds.amazonaws.com/eu-west-2/eu-west-2-bundle.pem
+  
+  myAppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: car-app-ASG
+      AvailabilityZoneDistribution:
+        CapacityDistributionStrategy: balanced-only
+      DefaultInstanceWarmup: 60
+      MinSize: 1
+      DesiredCapacity: 1 # temporarily reduce from 2 to setup application
+      MaxSize: 6
+      HealthCheckGracePeriod: 70
+      #HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myAppLaunchTemplate
+        Version: !GetAtt myAppLaunchTemplate.LatestVersionNumber
+      TargetGroupARNs:
+        - !ImportValue carAppTargetGroup-Arn
+      VPCZoneIdentifier:
+        - !ImportValue webSubA-Id # temporarily deploy to public subnets so they are accessible via SSH
+        - !ImportValue webSubB-Id
+  
+  myAppScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref myAppAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 60
