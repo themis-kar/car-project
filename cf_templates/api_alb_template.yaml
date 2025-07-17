@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: Application Load Balancer and API Gateway
 
 Resources:
-  # Dependancies: ALB, Target Group, Listener
+  # Dependancies: ALB, Target Group, Listener, API Gateway
   # Output: target group ARN
   myAppLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer

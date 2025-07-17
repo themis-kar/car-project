@@ -60,16 +60,42 @@ Resources:
               - |
                 #!/bin/bash -xe
 
-                export DB_HOST="${DbHost}"
-                # More logic can go here
-                dnf -y install postgresql17
+                dnf update -y
+                dnf install -y python3 wget
+                wget --https-only --retry-connrefused --waitretry=1 --tries=3 --timeout=15 -o /var/log/user_data_download.log -O /tmp/user_data.sh https://raw.githubusercontent.com/themis-kar/car-project/refs/heads/main/backend/ec2_user_data.sh
+                chmod +x /tmp/user_data.sh
+                sudo -u ec2-user /tmp/user_data.sh ${AWS::Region}
 
-                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource myInstance --region ${AWS::Region}
-              - DbHost: !ImportValue postgres-InstanceArn
-        # wget https://truststore.pki.rds.amazonaws.com/eu-west-2/eu-west-2-bundle.pem
+                cat > /etc/systemd/system/carApp.service <<EOF
+                [Unit]
+                Description=Gunicorn instance to serve my car-app
+                After=network.TargetGroupARNs
+
+                [Service]
+                User=ec2-user
+                Group=ec2-user
+                WorkingDirectory=/home/ec2-user/car-app-2025
+                Environment="PATH=/home/ec2-user/car-app-2025/.venv/bin"
+                ExecStart=/home/ec2-user/car-app-2025/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8080 app:app
+
+                Restart=always
+
+                [Install]
+                WantedBy=multi-user.target
+                EOF
+
+                systemctl daemon-reload
+                systemctl start carApp.service
+                systemctl enable carApp.service
+                
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource myAppAutoScalingGroup --region ${AWS::Region}
+              - DbHost: placeholder-hostname-for-db
   
   myAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT10M
     Properties:
       AutoScalingGroupName: car-app-ASG
       AvailabilityZoneDistribution:
@@ -83,8 +109,8 @@ Resources:
       LaunchTemplate:
         LaunchTemplateId: !Ref myAppLaunchTemplate
         Version: !GetAtt myAppLaunchTemplate.LatestVersionNumber
-      TargetGroupARNs:
-        - !ImportValue carAppTargetGroup-Arn
+      #TargetGroupARNs:
+      #  - !ImportValue carAppTargetGroup-Arn
       VPCZoneIdentifier:
         - !ImportValue webSubA-Id # temporarily deploy to public subnets so they are accessible via SSH
         - !ImportValue webSubB-Id
