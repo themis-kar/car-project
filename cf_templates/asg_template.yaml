@@ -62,7 +62,9 @@ Resources:
 
                 dnf update -y
                 dnf install -y python3 wget
-                wget --https-only --retry-connrefused --waitretry=1 --tries=3 --timeout=15 -o /var/log/user_data_download.log -O /tmp/user_data.sh https://raw.githubusercontent.com/themis-kar/car-project/refs/heads/main/backend/ec2_user_data.sh
+                wget --https-only --retry-connrefused --waitretry=1 --tries=3 \
+                  --timeout=15 -o /var/log/user_data_download.log \
+                  -O /tmp/user_data.sh https://raw.githubusercontent.com/themis-kar/car-project/refs/heads/main/backend/ec2_user_data.sh
                 chmod +x /tmp/user_data.sh
                 sudo -u ec2-user /tmp/user_data.sh ${AWS::Region}
 
@@ -76,6 +78,7 @@ Resources:
                 Group=ec2-user
                 WorkingDirectory=/home/ec2-user/car-app-2025
                 Environment="PATH=/home/ec2-user/car-app-2025/.venv/bin"
+                Environment="DB_HOST=${DbHost}"
                 ExecStart=/home/ec2-user/car-app-2025/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8080 app:app
 
                 Restart=always
