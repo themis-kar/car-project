@@ -165,7 +165,17 @@ Resources:
                       )
 
                       cur = conn.cursor()
-                      cur.execute("CREATE TABLE cars (plate varchar(7) PRIMARY KEY, make text, model text, year smallint, colour text, mileage int);")
+                      cur.execute("""
+                        CREATE TABLE cars (
+                          plate varchar(7) PRIMARY KEY,
+                          make text,
+                          model text,
+                          year smallint,
+                          colour text,
+                          mileage int,
+                          status text CHECK (status IN ('TOTALLED', 'NEEDS_REPAIR', 'ACCEPTABLE'))
+                        );
+                      """)
                       cur.execute("CREATE USER db_iam_user;")
                       cur.execute("GRANT rds_iam TO db_iam_user;")
                       conn.commit()

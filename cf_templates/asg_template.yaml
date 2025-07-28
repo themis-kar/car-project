@@ -78,7 +78,8 @@ Resources:
                 Group=ec2-user
                 WorkingDirectory=/home/ec2-user/car-app-2025
                 Environment="PATH=/home/ec2-user/car-app-2025/.venv/bin"
-                Environment="DB_HOST=${DbHost}"
+                Environment="REGION=${AWS::Region}"
+                Environment="DB_ENDPOINT=${DbHost}"
                 ExecStart=/home/ec2-user/car-app-2025/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8080 app:app
 
                 Restart=always
@@ -92,7 +93,7 @@ Resources:
                 systemctl enable carApp.service
                 
                 /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource myAppAutoScalingGroup --region ${AWS::Region}
-              - DbHost: placeholder-hostname-for-db
+              - DbHost: !ImportValue postgresEndpoint
   
   myAppAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
