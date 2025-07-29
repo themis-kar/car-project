@@ -139,7 +139,7 @@ Resources:
     Properties:
       RouteTableId: !Ref webRT
       SubnetId: !Ref webB
-  # route table for private subnets (placeholder)
+  # route table for private subnets
   appRT:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -160,28 +160,28 @@ Resources:
       RouteTableId: !Ref appRT
       SubnetId: !Ref appB
   
-  ## Elastic IP required for NAT Gateway
-  #NatEIP:
-    #Type: AWS::EC2::EIP
-    #Properties:
-      #Domain: vpc
-  ## NAT Gateway in public subnet with EIP
-  #NatGw:
-    #Type: AWS::EC2::NatGateway
-    #Properties:
-      #AllocationId: !GetAtt NatEIP.AllocationId
-      #ConnectivityType: public
-      #SubnetId: !Ref webA
-      #Tags:
-        #- Key: Name
-          #Value: NAT-Gateway
-  ## add route for private subnets to NAT GW
-  #RouteToNatGw:
-    #Type: AWS::EC2::Route
-    #Properties:
-      #DestinationCidrBlock: 0.0.0.0/0
-      #NatGatewayId: !Ref NatGw
-      #RouteTableId: !Ref appRT
+  # Elastic IP required for NAT Gateway
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  # NAT Gateway in public subnet with EIP
+  NatGw:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      ConnectivityType: public
+      SubnetId: !Ref webA
+      Tags:
+        - Key: Name
+          Value: NAT-Gateway
+  # add route for private subnets to NAT GW
+  RouteToNatGw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGw
+      RouteTableId: !Ref appRT
   
   # security group for RDS instance
   DBsecGroup:
@@ -235,43 +235,37 @@ Outputs:
     Value: !Ref baseVPC
     Export:
       Name: baseVPC-Id
-
   webAId:
     Description: The id of web tier subnet A
     Value: !Ref webA
     Export:
       Name: webSubA-Id
-
   webBId:
     Description: The id of web tier subnet B
     Value: !Ref webB
     Export:
       Name: webSubB-Id
-
   appAId:
     Description: The id of app tier subnet A
     Value: !Ref appA
     Export:
       Name: appSubA-Id
-
   appBId:
     Description: The id of app tier subnet B
     Value: !Ref appB
     Export:
       Name: appSubB-Id
-
   dbAId:
     Description: The id of DB tier subnet A
     Value: !Ref dbA
     Export:
       Name: dbSubA-Id
-
   dbBId:
     Description: The id of DB tier subnet B
     Value: !Ref dbB
     Export:
       Name: dbSubB-Id
-
+  # Security Group Ids
   DBsecurityGroup:
     Description: Security group for RDS instance
     Value: !Ref DBsecGroup

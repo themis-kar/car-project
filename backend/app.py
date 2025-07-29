@@ -1,7 +1,55 @@
 from flask import Flask, request, jsonify
 import psycopg2
 import boto3
+import json
+import time
+import fcntl
 from os import getenv
+
+TOKEN_CACHE = "iam_db_auth_token.json"
+REFRESH_THRESHOLD = 120 # refresh token if < 2 mins left
+TOKEN_VALIDITY = 15*60 # 15 min validity for token
+
+def get_iam_auth_token_from_file():
+    now = int(time.time())
+    # Check if file exists and retrieve existing token
+    try:
+        with open(TOKEN_CACHE, "r") as f:
+            fcntl.flock(f, fcntl.LOCK_SH)  # shared lock for read
+            data = json.load(f)
+            fcntl.flock(f, fcntl.LOCK_UN)
+    except (FileNotFoundError, json.JSONDecodeError):
+        data = None
+    # Check if data was retrieved and token not close to expiry
+    if data and (int(data["expires_at"]) - now) > REFRESH_THRESHOLD:
+            return data["token"]
+    # Generate new token
+    rds = boto3.client('rds', region_name=getenv('REGION'))
+    token = rds.generate_db_auth_token(DBHostname=getenv('DB_ENDPOINT'), Port=5432, DBUsername='db_iam_user')
+    # Write new token to file
+    expires_at = now + TOKEN_VALIDITY
+    with open(TOKEN_CACHE, "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)  # exclusive lock for write
+        json.dump({"token": token, "expires_at": expires_at}, f)
+        fcntl.flock(f, fcntl.LOCK_UN)
+    return token
+    
+def rds_connect():
+    # Connect to database
+    try:
+        token = get_iam_auth_token_from_file()
+        return psycopg2.connect(
+            host=getenv('DB_ENDPOINT'),
+            port=5432,
+            dbname='postgres',
+            user='db_iam_user',
+            password=token,
+            sslmode='verify-ca',
+            sslrootcert='rds_cert.pem'
+        )
+    except Exception as e:
+        print(f"Connection to database failed with message: {e}")
+        raise
 
 app = Flask(__name__)
 
@@ -31,33 +79,18 @@ def add_car():
     colour = data.get('colour').upper()
     mileage = data.get('mileage')
     status = data.get('status')
-
-    # Connect to database
-    rds_client = boto3.client('rds', region_name=getenv('REGION'))
-    token = rds_client.generate_db_auth_token(
-        DBHostname=getenv('DB_ENDPOINT'),
-        Port=5432,
-        DBUsername='db_iam_user'
-    )
-
-    with open('token_list.txt', 'a') as f:
-        f.write(f"{token}\n-------\n")
-    
-    conn = psycopg2.connect(
-        host=getenv('DB_ENDPOINT'),
-        port=5432,
-        dbname='postgres',
-        user='db_iam_user',
-        password=token,
-        sslmode='verify-ca',
-        sslrootcert='rds_cert.pem'
-    )
-
-    cur = conn.cursor()
     
     # Build query for inserting values
     query = "INSERT INTO cars (plate, make, model, year, colour, mileage, status) VALUES (%s, %s, %s, %s, %s, %s, %s)"
     new_car = (plate, make, model, year, colour, mileage, status)
+
+    #Connect to RDS
+    try:
+        conn = rds_connect()
+    except:
+        return jsonify({'error': 'Unable to connect to database'}), 503
+    cur = conn.cursor()
+
     # Attempt query execution and handle primary key violation
     try:
         cur.execute(query, new_car)
@@ -75,14 +108,11 @@ def add_car():
 
 @app.route('/car/<string:plate>', methods=['DELETE', 'PATCH'])
 def modify_car(plate):
-    # Connect to database - to be updated for RDS endpoints and IAM authentication
-    conn = psycopg2.connect(
-        host='192.168.1.196',
-        port=5432,
-        dbname='postgres',
-        user='postgres',
-        password='mypass'
-    )
+    #Connect to RDS
+    try:
+        conn = rds_connect()
+    except:
+        return jsonify({'error': 'Unable to connect to database'}), 503
     cur = conn.cursor()
 
     if request.method == 'DELETE':
@@ -144,27 +174,11 @@ def modify_car(plate):
 
 @app.route('/cars/view_all')
 def get_all_cars():
-    # Connect to RDS as user=db_iam_user, host='retrieve from env variables', SSL_cert='rds_cert.pem', dbname='postgres'
-    # environment variables REGION, DB_ENDPOINT
-    rds_client = boto3.client('rds', region_name=getenv('REGION'))
-    token = rds_client.generate_db_auth_token(
-        DBHostname=getenv('DB_ENDPOINT'),
-        Port=5432,
-        DBUsername='db_iam_user'
-    )
-
-    with open('token_list.txt', 'a') as f:
-        f.write(f"{token}\n-------\n")
-
-    conn = psycopg2.connect(
-        host=getenv('DB_ENDPOINT'),
-        port=5432,
-        dbname='postgres',
-        user='db_iam_user',
-        password=token,
-        sslmode='verify-ca',
-        sslrootcert='rds_cert.pem'
-    )
+    #Connect to RDS
+    try:
+        conn = rds_connect()
+    except:
+        return jsonify({'error': 'Unable to connect to database'}), 503
     cur = conn.cursor()
 
     cars_array = []
@@ -191,7 +205,7 @@ def get_all_cars():
 
 @app.route('/cars')
 def filter_cars():
-    
+    # Validate fields in the request
     mask_request = request.args
     expected_keys = {'plate', 'make', 'model', 'year', 'colour', 'mileage', 'status'}
     mask_valid = {key: mask_request[key] for key in expected_keys if key in mask_request} # store valid filters only
@@ -199,13 +213,11 @@ def filter_cars():
     if not mask_valid: # return bad request if the filter doesn't have any valid values
         return jsonify({"error": "Invalid filter", "message": "No valid fields provided"}), 400
     
-    conn = psycopg2.connect(
-        host='192.168.1.196',
-        port=5432,
-        dbname='postgres',
-        user='postgres',
-        password='mypass'
-    )
+    #Connect to RDS
+    try:
+        conn = rds_connect()
+    except:
+        return jsonify({'error': 'Unable to connect to database'}), 503
     cur = conn.cursor()
 
     base_query = "SELECT * FROM cars"

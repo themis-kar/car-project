@@ -178,6 +178,9 @@ Resources:
                       """)
                       cur.execute("CREATE USER db_iam_user;")
                       cur.execute("GRANT rds_iam TO db_iam_user;")
+                      cur.execute("GRANT CONNECT ON DATABASE postgres TO db_iam_user;")
+                      cur.execute("GRANT USAGE ON SCHEMA public TO db_iam_user;")
+                      cur.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO db_iam_user;")
                       conn.commit()
 
                       cur.close()

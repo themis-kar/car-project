@@ -71,7 +71,7 @@ Resources:
                 cat > /etc/systemd/system/carApp.service <<EOF
                 [Unit]
                 Description=Gunicorn instance to serve my car-app
-                After=network.TargetGroupARNs
+                After=network.target
 
                 [Service]
                 User=ec2-user

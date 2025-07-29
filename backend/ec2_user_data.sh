@@ -7,7 +7,7 @@ cd car-app-2025
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install Flask gunicorn
+pip install Flask gunicorn psycopg2-binary boto3
 wget --https-only --retry-connrefused --waitretry=1 \
     --tries=3 --timeout=15 -O /home/ec2-user/car-app-2025/app.py https://raw.githubusercontent.com/themis-kar/car-project/refs/heads/main/backend/app.py
 wget --https-only --retry-connrefused --waitretry=1 \

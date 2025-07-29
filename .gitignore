@@ -2,3 +2,4 @@
 backend/.venv/
 backend/__pychache__
 *.pyc
+.notes
