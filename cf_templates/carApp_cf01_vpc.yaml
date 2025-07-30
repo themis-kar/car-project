@@ -1,13 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: VPC structure
-# VPC, public & private subnets, route table, IGW, DB SG, EC2 SG
-
-Parameters:
-
-  LocalIpAddress:
-    Description: "The IP CIDR range allowed to SSH into the instance"
-    Type: String
-    Default: 3.8.37.24/29
+Description: VPC structure and Security Groups
 
 Resources:
 
@@ -34,7 +26,6 @@ Resources:
         - Key: Name
           Value: webSubA
       VpcId: !Ref baseVPC
-
   webB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -60,7 +51,6 @@ Resources:
         - Key: Name
           Value: appSubA
       VpcId: !Ref baseVPC
-
   appB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -86,7 +76,6 @@ Resources:
         - Key: Name
           Value: dbSubA
       VpcId: !Ref baseVPC
-
   dbB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -100,19 +89,18 @@ Resources:
           Value: dbSubB
       VpcId: !Ref baseVPC
   # internet gateway and attachment to VPC
-  myInternetGw:
+  carAppInternetGw:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags: 
         - Key: Name
-          Value: Internet Gateway
-
+          Value: carApp Internet Gateway
   IgwAttachement:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      InternetGatewayId: !Ref myInternetGw
+      InternetGatewayId: !Ref carAppInternetGw
       VpcId: !Ref baseVPC
-  # route table for public subnets
+  # route table for public subnets & associations
   webRT:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -120,26 +108,24 @@ Resources:
         - Key: Name
           Value: webRouteTable
       VpcId: !Ref baseVPC
- # route for public subnets to IGW
-  routeToIgw:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref myInternetGw
-      RouteTableId: !Ref webRT
-
   webASubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref webRT
       SubnetId: !Ref webA
-
   webBSubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref webRT
       SubnetId: !Ref webB
-  # route table for private subnets
+  # route from public subnets to IGW
+  routeToIgw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref carAppInternetGw
+      RouteTableId: !Ref webRT
+  # route table for private subnets & associations
   appRT:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -147,41 +133,38 @@ Resources:
         - Key: Name
           Value: appRouteTable
       VpcId: !Ref baseVPC
-
   appASubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref appRT
       SubnetId: !Ref appA
-
   appBSubAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       RouteTableId: !Ref appRT
       SubnetId: !Ref appB
-  
-  # Elastic IP required for NAT Gateway
-  NatEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-  # NAT Gateway in public subnet with EIP
-  NatGw:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatEIP.AllocationId
-      ConnectivityType: public
-      SubnetId: !Ref webA
-      Tags:
-        - Key: Name
-          Value: NAT-Gateway
-  # add route for private subnets to NAT GW
-  RouteToNatGw:
-    Type: AWS::EC2::Route
-    Properties:
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGw
-      RouteTableId: !Ref appRT
+  ## Elastic IP required for NAT Gateway
+  #NatEIP:
+    #Type: AWS::EC2::EIP
+    #Properties:
+      #Domain: vpc
+  ## NAT Gateway in public subnet A with EIP
+  #NatGw:
+    #Type: AWS::EC2::NatGateway
+    #Properties:
+      #AllocationId: !GetAtt NatEIP.AllocationId
+      #ConnectivityType: public
+      #SubnetId: !Ref webA
+      #Tags:
+        #- Key: Name
+          #Value: NAT-Gateway
+  ## route from private subnets to NAT GW
+  #RouteToNatGw:
+    #Type: AWS::EC2::Route
+    #Properties:
+      #DestinationCidrBlock: 0.0.0.0/0
+      #NatGatewayId: !Ref NatGw
+      #RouteTableId: !Ref appRT
   
   # security group for RDS instance
   DBsecGroup:
@@ -202,10 +185,6 @@ Resources:
       GroupDescription: Security Group for EC2 instances
       GroupName: ec2-secGroup
       SecurityGroupIngress:
-        - CidrIp: !Ref LocalIpAddress
-          IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
         - SourceSecurityGroupId: !Ref ALBsecGroup
           IpProtocol: tcp
           FromPort: 8080
@@ -271,13 +250,11 @@ Outputs:
     Value: !Ref DBsecGroup
     Export:
       Name: DBsecGroup-Id
-  
   EC2securityGroup:
     Description: Security group for EC2 instances
     Value: !Ref EC2secGroup
     Export:
       Name: EC2secGroup-Id
-
   ALBsecurityGroup:
     Description: Security group for Application Load Balancer
     Value: !Ref ALBsecGroup

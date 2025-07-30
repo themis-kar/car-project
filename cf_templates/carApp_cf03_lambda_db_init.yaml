@@ -4,7 +4,7 @@ Description: Initialization of RDS DB using Lambda
 Parameters:
 
   LambdaLayerArn:
-    Description: "The ARN of the Lambda Layer that contains psycopg2"
+    Description: The ARN of the Lambda Layer that contains psycopg2
     Type: String
 
 Resources:
@@ -57,7 +57,7 @@ Resources:
       Environment:
         Variables:
           REGION: !Ref AWS::Region
-          DB_HOST: !ImportValue postgresEndpoint
+          DB_HOST: !ImportValue postgres-Endpoint
           SECRET_ARN: !ImportValue postgres-SecretArn
           DB_INSTANCE: !ImportValue postgres-InstanceArn
           DB_NAME: postgres
@@ -194,7 +194,7 @@ Resources:
               except Exception as e:
                   logger.error(f"Exception: {e}")
                   send_response(event, context, 'FAILED', {}, reason=str(e))
-      Description: 'Function that initiliazes the RDS PostgreSQL DB'
+      Description: Function that initiliazes the RDS PostgreSQL DB
       EphemeralStorage:
         Size: 512
       Handler: index.lambda_handler

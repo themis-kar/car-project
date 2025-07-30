@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: RDS instance creation and init
+Description: RDS instance creation
 
 Resources:
-
+ # RDS instance for car collection
   mainDBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -40,12 +40,12 @@ Resources:
         - !ImportValue dbSubB-Id
 
 Outputs:
-
+  # retrieve DB endpoint
   DbHostname:
     Description: The hostname of the RDS instance
     Value: !GetAtt mainDBInstance.Endpoint.Address
     Export:
-      Name: postgresEndpoint
+      Name: postgres-Endpoint
   
   DbSecretArn:
     Description: The ARN of the DB secret in Secrets Manager
