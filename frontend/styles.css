@@ -116,7 +116,7 @@ header h1 {
     z-index: 2000;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.5s ease-in-out;
+    transition: opacity 0.3s ease-in-out;
 }
 
 #form-banner.success {

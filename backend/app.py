@@ -55,7 +55,7 @@ app = Flask(__name__)
 
 @app.route('/ping')
 def health_check():
-    return "This instance is healthy", 200
+    return 'This instance is healthy', 200
 
 @app.route('/car', methods=['POST'])
 def add_car():
@@ -63,20 +63,20 @@ def add_car():
     try:
         data = request.get_json()
     except:
-        return jsonify({'error': 'No JSON data provided'}), 400
+        return 'No JSON data provided', 400
     
     # Check if data has the required format
     expected_keys = {'plate', 'make', 'model', 'year', 'colour', 'mileage', 'status'}
     missing = expected_keys - data.keys()
     if missing:
-        return jsonify({'error': f"Missing fields: {missing}"}), 400
+        return f"Missing fields: {missing}", 400
     
     # Extract data
-    plate = data.get('plate').upper()
-    make = data.get('make').upper()
-    model = data.get('model').upper()
+    plate = data.get('plate')
+    make = data.get('make')
+    model = data.get('model')
     year = data.get('year')
-    colour = data.get('colour').upper()
+    colour = data.get('colour')
     mileage = data.get('mileage')
     status = data.get('status')
     
@@ -88,7 +88,7 @@ def add_car():
     try:
         conn = rds_connect()
     except:
-        return jsonify({'error': 'Unable to connect to database'}), 503
+        return 'Unable to connect to database', 503
     cur = conn.cursor()
 
     # Attempt query execution and handle primary key violation
@@ -98,13 +98,13 @@ def add_car():
         # Close connection to database
         cur.close()
         conn.close()
-        return jsonify({"message": f"Car added: {plate} | {colour} {make} {model} from {year} with {mileage} km",}), 201
+        return f"Added: {plate} > {make} {model} > {year} > {colour} > {mileage}km", 201
     except psycopg2.errors.UniqueViolation:
         conn.rollback()
         # Close connection to database
         cur.close()
         conn.close()
-        return jsonify({"error": "Conflict", "message": f"Car with plate {plate} already exists."}), 409
+        return f"Car with plate {plate} already exists", 409
 
 @app.route('/car/<string:plate>', methods=['DELETE', 'PATCH'])
 def modify_car(plate):
@@ -112,7 +112,7 @@ def modify_car(plate):
     try:
         conn = rds_connect()
     except:
-        return jsonify({'error': 'Unable to connect to database'}), 503
+        return 'Unable to connect to database', 503
     cur = conn.cursor()
 
     if request.method == 'DELETE':
@@ -125,43 +125,42 @@ def modify_car(plate):
         conn.close()
 
         if cur.rowcount == 0:
-            return '', 404 # not found in the database
+            return 'Car not found in the database', 404
         
-        return '', 204 # delete successful
+        return f"Car with plate ${plate} was deleted successfully", 204 # delete successful
     elif request.method == 'PATCH':
         query = "SELECT colour, mileage, status FROM cars WHERE plate = %s"
+        # Attempt query execution and return 404 if plate not found
         cur.execute(query, (plate,))
 
         if cur.rowcount == 0:
             cur.close()
             conn.close()
-            return '', 404 # not found in the database - close connection
+            return 'Car not found in the database', 404
 
-        IMMUTABLE_FIELDS = {'plate', 'make', 'model', 'year'}
-
+        IMMUTABLE_FIELDS = {'plate', 'make', 'model', 'year'} # fields that cannot be modified
         old_car_info = cur.fetchone() # retrieve current car details
         try:
             new_car_info = request.get_json() # retrieve new car details
         except:
-            return jsonify({'error': 'No fields for modification provided'}), 400
+            return 'No fields for modification provided', 400
         
         new_fields = new_car_info.keys() # retrieve the fields that require modification
-        
         forbidden = IMMUTABLE_FIELDS.intersection(new_fields) # check if request includes any forbidden fields
         if forbidden:
             cur.close()
             conn.close()
-            return jsonify({'error': f'Cannot modify fields: {", ".join(forbidden)}'}), 403 # return forbidden code
+            return f'Cannot modify fields: {", ".join(forbidden)}', 403 # return forbidden code
         
         for field in new_fields:
             if field == 'mileage' and new_car_info[field] < old_car_info[1]:
                 cur.close()
                 conn.close()
-                return jsonify({"error": "Invalid Value", "message": "New mileage cannot be lower than old value"}), 400
+                return 'New mileage cannot be lower than old value', 400
             if field == 'status' and old_car_info[2] == 'TOTALLED' and new_car_info[field] != 'TOTALLED':
                 cur.close()
                 conn.close()
-                return jsonify({"error": "Invalid value", "message": "The status of a totalled car cannot change"}), 400
+                return 'The status of a totalled car cannot change', 400
             # checks passed update value
             query = "UPDATE cars SET " + field + ' = %s WHERE plate = %s'
             cur.execute(query, (new_car_info[field], plate)) # update each field
@@ -170,36 +169,26 @@ def modify_car(plate):
         cur.close()
         conn.close()
 
-        return '', 204 # update successful
+        return f"Car with plate {plate} updated successfully", 204 # update successful
 
 @app.route('/cars/view_all')
 def get_all_cars():
-    #Connect to RDS
+    # Connect to RDS
     try:
         conn = rds_connect()
     except:
-        return jsonify({'error': 'Unable to connect to database'}), 503
+        return 'Unable to connect to database', 503
     cur = conn.cursor()
 
-    cars_array = []
     cur.execute("SELECT * FROM cars")
     rows = cur.fetchall() #stores results as list of tuples
     cur.close()
     conn.close()
 
     if len(rows) == 0:
-        return '', 404 # no cars found in the DB
-    
-    for row in rows:
-        cars_array.append({
-            "plate": row[0],
-            "make": row[1],
-            "model": row[2],
-            "year": row[3],
-            "colour": row[4],
-            "mileage": row[5],
-            "status": row[6]
-        })
+        return 'No cars found in the database', 404 # no cars found in the DB
+    # Populate and return list of cars
+    cars_array = [{"plate": row[0], "make": row[1], "model": row[2], "year": row[3], "colour": row[4], "mileage": row[5], "status": row[6]} for row in rows]
     
     return jsonify(cars_array), 200
 
@@ -211,13 +200,13 @@ def filter_cars():
     mask_valid = {key: mask_request[key] for key in expected_keys if key in mask_request} # store valid filters only
 
     if not mask_valid: # return bad request if the filter doesn't have any valid values
-        return jsonify({"error": "Invalid filter", "message": "No valid fields provided"}), 400
+        return 'No valid fields provided', 400
     
-    #Connect to RDS
+    # Connect to RDS
     try:
         conn = rds_connect()
     except:
-        return jsonify({'error': 'Unable to connect to database'}), 503
+        return 'Unable to connect to database', 503
     cur = conn.cursor()
 
     base_query = "SELECT * FROM cars"
@@ -230,19 +219,10 @@ def filter_cars():
     conn.close()
 
     if len(rows) == 0:
-        return '', 404 # no cars found in the DB
-    cars_array = []
-    for row in rows:
-        cars_array.append({
-            "plate": row[0],
-            "make": row[1],
-            "model": row[2],
-            "year": row[3],
-            "colour": row[4],
-            "mileage": row[5],
-            "status": row[6]
-        })
-    
+        return f"No cars with {mask_valid} found", 404 # no cars found in the DB
+    # Populate and return list of cars
+    cars_array = [{"plate": row[0], "make": row[1], "model": row[2], "year": row[3], "colour": row[4], "mileage": row[5], "status": row[6]} for row in rows]
+
     return jsonify(cars_array), 200
 
 if __name__ == '__main__':

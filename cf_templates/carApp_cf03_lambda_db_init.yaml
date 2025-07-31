@@ -167,7 +167,7 @@ Resources:
                       cur = conn.cursor()
                       cur.execute("""
                         CREATE TABLE cars (
-                          plate varchar(7) PRIMARY KEY,
+                          plate varchar(8) PRIMARY KEY,
                           make text,
                           model text,
                           year smallint,

@@ -143,28 +143,28 @@ Resources:
     Properties:
       RouteTableId: !Ref appRT
       SubnetId: !Ref appB
-  ## Elastic IP required for NAT Gateway
-  #NatEIP:
-    #Type: AWS::EC2::EIP
-    #Properties:
-      #Domain: vpc
-  ## NAT Gateway in public subnet A with EIP
-  #NatGw:
-    #Type: AWS::EC2::NatGateway
-    #Properties:
-      #AllocationId: !GetAtt NatEIP.AllocationId
-      #ConnectivityType: public
-      #SubnetId: !Ref webA
-      #Tags:
-        #- Key: Name
-          #Value: NAT-Gateway
-  ## route from private subnets to NAT GW
-  #RouteToNatGw:
-    #Type: AWS::EC2::Route
-    #Properties:
-      #DestinationCidrBlock: 0.0.0.0/0
-      #NatGatewayId: !Ref NatGw
-      #RouteTableId: !Ref appRT
+  # Elastic IP required for NAT Gateway
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  # NAT Gateway in public subnet A with EIP
+  NatGw:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      ConnectivityType: public
+      SubnetId: !Ref webA
+      Tags:
+        - Key: Name
+          Value: NAT-Gateway
+  # route from private subnets to NAT GW
+  RouteToNatGw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGw
+      RouteTableId: !Ref appRT
   
   # security group for RDS instance
   DBsecGroup:

@@ -39,6 +39,19 @@ Resources:
     Type: AWS::ApiGatewayV2::Api
     Properties:
       Description: Manage API calls to your car application
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - OPTIONS
+        AllowOrigins:
+          - '*'
+        MaxAge: 20
       DisableExecuteApiEndpoint: false
       IpAddressType: ipv4
       Name: car-app-ApiGw
