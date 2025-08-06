@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 import psycopg2
 import boto3
 import json
@@ -45,7 +45,8 @@ def rds_connect():
             user='db_iam_user',
             password=token,
             sslmode='verify-ca',
-            sslrootcert='rds_cert.pem'
+            sslrootcert='rds_cert.pem',
+            connect_timeout=5 # timeout in seconds
         )
     except Exception as e:
         print(f"Connection to database failed with message: {e}")
@@ -88,7 +89,7 @@ def add_car():
     try:
         conn = rds_connect()
     except:
-        return 'Unable to connect to database', 503
+        return 'Unable to connect to the database', 503
     cur = conn.cursor()
 
     # Attempt query execution and handle primary key violation
@@ -112,7 +113,7 @@ def modify_car(plate):
     try:
         conn = rds_connect()
     except:
-        return 'Unable to connect to database', 503
+        return 'Unable to connect to the database', 503
     cur = conn.cursor()
 
     if request.method == 'DELETE':
@@ -177,7 +178,7 @@ def get_all_cars():
     try:
         conn = rds_connect()
     except:
-        return 'Unable to connect to database', 503
+        return 'Unable to connect to the database', 503
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM cars")
@@ -189,8 +190,8 @@ def get_all_cars():
         return 'No cars found in the database', 404 # no cars found in the DB
     # Populate and return list of cars
     cars_array = [{"plate": row[0], "make": row[1], "model": row[2], "year": row[3], "colour": row[4], "mileage": row[5], "status": row[6]} for row in rows]
-    
-    return jsonify(cars_array), 200
+    json_cars = json.dumps(cars_array, sort_keys=False)
+    return Response(response=json_cars, mimetype='application/json', content_type='application/json', status=200)
 
 @app.route('/cars')
 def filter_cars():
@@ -206,7 +207,7 @@ def filter_cars():
     try:
         conn = rds_connect()
     except:
-        return 'Unable to connect to database', 503
+        return 'Unable to connect to the database', 503
     cur = conn.cursor()
 
     base_query = "SELECT * FROM cars"
@@ -222,8 +223,8 @@ def filter_cars():
         return f"No cars with {mask_valid} found", 404 # no cars found in the DB
     # Populate and return list of cars
     cars_array = [{"plate": row[0], "make": row[1], "model": row[2], "year": row[3], "colour": row[4], "mileage": row[5], "status": row[6]} for row in rows]
-
-    return jsonify(cars_array), 200
+    json_cars = json.dumps(cars_array, sort_keys=False)
+    return Response(response=json_cars, mimetype='application/json', content_type='application/json', status=200)
 
 if __name__ == '__main__':
     app.run(debug=True)
