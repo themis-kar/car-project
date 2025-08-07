@@ -50,8 +50,8 @@ Resources:
           - DELETE
           - OPTIONS
         AllowOrigins:
-          - '*'
-        MaxAge: 20
+          - !Join ["://", [https, !ImportValue cloudFront-Endpoint]]
+        MaxAge: 600
       DisableExecuteApiEndpoint: false
       IpAddressType: ipv4
       Name: car-app-ApiGw

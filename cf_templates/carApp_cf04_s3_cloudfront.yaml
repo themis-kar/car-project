@@ -46,7 +46,7 @@ Resources:
             }
           ]
         } 
-  # CloudFront Distribution in front of S3 bucket
+  # CloudFront Distribution
   carAppCloudFrontDist:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -64,7 +64,7 @@ Resources:
           TargetOriginId: myCarAppBucket
           ViewerProtocolPolicy: redirect-to-https
         DefaultRootObject: index.html
-        Enabled: false
+        Enabled: false # created as disabled until we upload the files in the bucket
         HttpVersion: http2
         IPV6Enabled: false
         Origins:
@@ -98,3 +98,5 @@ Outputs:
   carAppCloudFrontDistDomain:
     Description: The domain of the CloudFront Distribution
     Value: !GetAtt carAppCloudFrontDist.DomainName
+    Export:
+      Name: cloudFront-Endpoint

@@ -1,4 +1,4 @@
-const api_gw_url = 'https://rbpp66gbnf.execute-api.eu-west-2.amazonaws.com';
+const api_gw_url = 'https://je4c9cy7ge.execute-api.eu-west-2.amazonaws.com';
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-view").addEventListener("click", loadCars);
@@ -156,10 +156,8 @@ function addCarSubmit(event) {
         if (response.ok) {
             // Success
             showFormBanner("Car added successfully!", "success");
-            setTimeout(() => {
-                document.getElementById("form-overlay").classList.add("hidden");
-                document.getElementById("form-overlay").innerHTML = "";
-            }, 1500);
+            document.getElementById("form-overlay").classList.add("hidden");
+            document.getElementById("form-overlay").innerHTML = "";
         } else {
             // Server responded with error (e.g. 400, 500)
             showFormBanner(data || "Failed to add car. Please try again.", "error");
@@ -241,11 +239,9 @@ function updateCarSubmit(event) {
         const data = await response.text();
         if (response.ok) {
             // Success
-            showFormBanner(data, "success");
-            setTimeout(() => {
-                document.getElementById("form-overlay").classList.add("hidden");
-                document.getElementById("form-overlay").innerHTML = "";
-            }, 1500);
+            showFormBanner(`Car with plate ${plate} updated successfully`, "success");
+            document.getElementById("form-overlay").classList.add("hidden");
+            document.getElementById("form-overlay").innerHTML = "";
         } else {
             // Server responded with error (e.g. 400, 500)
             showFormBanner(data || "Failed to update car. Please try again.", "error");
@@ -294,11 +290,9 @@ function deleteCarSubmit(event) {
 
         if (response.ok) {
             // Success
-            showFormBanner(data, "success");
-            setTimeout(() => {
-                document.getElementById("form-overlay").classList.add("hidden");
-                document.getElementById("form-overlay").innerHTML = "";
-            }, 1500);
+            showFormBanner(`Car with plate ${plate} deleted successfully`, "success");
+            document.getElementById("form-overlay").classList.add("hidden");
+            document.getElementById("form-overlay").innerHTML = "";
         } else {
             // Server responded with error (e.g. 400, 500)
             showFormBanner(data || "Failed to delete car. Please try again.", "error");

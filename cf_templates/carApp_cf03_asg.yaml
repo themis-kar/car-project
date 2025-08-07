@@ -110,8 +110,8 @@ Resources:
       AvailabilityZoneDistribution:
         CapacityDistributionStrategy: balanced-only
       DefaultInstanceWarmup: 60
-      MinSize: 2
-      DesiredCapacity: 2
+      MinSize: 1
+      DesiredCapacity: 1
       MaxSize: 6
       HealthCheckGracePeriod: 30
       HealthCheckType: ELB

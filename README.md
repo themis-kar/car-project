@@ -39,3 +39,6 @@ Folder 2: Backend (ec2_user_data.sh, Flask scripts, deployment script)
 Folder 3: CloudFormation yaml templates  
 
 Deployment order: VPC -> RDS -> Lambda for RDS init -> ELB & API Gateway -> ASG
+
+Bugs to fix:
+- Update mileage doesn't work - I modified line 157 in app.py casting to int

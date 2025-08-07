@@ -154,7 +154,7 @@ def modify_car(plate):
             return f'Cannot modify fields: {", ".join(forbidden)}', 403 # return forbidden code
         
         for field in new_fields:
-            if field == 'mileage' and new_car_info[field] < old_car_info[1]:
+            if field == 'mileage' and int(new_car_info[field]) < old_car_info[1]:
                 cur.close()
                 conn.close()
                 return 'New mileage cannot be lower than old value', 400

@@ -70,7 +70,7 @@ header h1 {
     padding: 20px;
     border: 1px solid #b6b6b6;
     border-radius: 5px;
-    min-height: 300px;
+    min-height: 100px;
 }
 
 /* Form Overlay */
