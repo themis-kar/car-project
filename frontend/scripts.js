@@ -1,4 +1,4 @@
-const api_gw_url = 'https://je4c9cy7ge.execute-api.eu-west-2.amazonaws.com';
+const api_gw_url = '<API-GW-URL>';
 
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-view").addEventListener("click", loadCars);
@@ -155,7 +155,7 @@ function addCarSubmit(event) {
         const data = await response.text();
         if (response.ok) {
             // Success
-            showFormBanner("Car added successfully!", "success");
+            showFormBanner(`Car with plate ${plate} added successfully!`, "success");
             document.getElementById("form-overlay").classList.add("hidden");
             document.getElementById("form-overlay").innerHTML = "";
         } else {
@@ -211,10 +211,11 @@ function updateCarForm() {
 function updateCarSubmit(event) {
     event.preventDefault();
     // extract info to be modified
-    const plate = encodeURIComponent(document.getElementById("plate").value);
+    const plate = document.getElementById("plate").value;
     const colour = document.getElementById("colour").value.toUpperCase();
     const mileage = document.getElementById("mileage").value;
     const status = document.getElementById("status").value;
+    const plate_uri = encodeURIComponent(plate)
     // prepare car data to be updated for body
     const carData = {
         ...(colour && { colour }),
@@ -227,7 +228,7 @@ function updateCarSubmit(event) {
         return;
     }
     // proceed with PATCH request
-    fetch(`${api_gw_url}/car/${plate}`, {
+    fetch(`${api_gw_url}/car/${plate_uri}`, {
         method: 'PATCH',
         mode: 'cors',
         headers: {
@@ -280,8 +281,9 @@ function deleteCarForm() {
 function deleteCarSubmit(event) {
     event.preventDefault();
     // extract plate from the form and make it URI compliant
-    const plate = encodeURIComponent(document.getElementById("plate").value);
-    fetch(`${api_gw_url}/car/${plate}`, {
+    const plate = document.getElementById("plate").value;
+    const plate_uri = encodeURIComponent(plate)
+    fetch(`${api_gw_url}/car/${plate_uri}`, {
         method: 'DELETE',
         mode: 'cors'
     })
@@ -354,9 +356,9 @@ function filterCarsForm() {
 async function filterCarsSubmit(event) {
     event.preventDefault();
     // extract info from the form
-    const plate = encodeURIComponent(document.getElementById("plate").value);
-    const make = encodeURIComponent(document.getElementById("make").value.toUpperCase());
-    const model = encodeURIComponent(document.getElementById("model").value.toUpperCase());
+    const plate = document.getElementById("plate").value;
+    const make = document.getElementById("make").value.toUpperCase();
+    const model = document.getElementById("model").value.toUpperCase();
     const year = document.getElementById("year").value;
     const colour = document.getElementById("colour").value.toUpperCase();
     const mileage = document.getElementById("mileage").value;

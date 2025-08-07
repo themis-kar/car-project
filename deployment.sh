@@ -59,28 +59,51 @@ aws cloudformation deploy \
     --region "$REGION" \
     --stack-name carApp-03-asg \
     --template-file "cf_templates/carApp_cf03_asg.yaml" \
-    --parameter-overrides Ec2KeyPair="labKey"
+    --capabilities CAPABILITY_NAMED_IAM
 
 echo "Auto Scaling Group deployed"
 
-# Deploye CloudFront distribution and S3 bucket
+# Cleanup Lambda
+echo "Start deletion of lambda used for DB init - may take up to 20 min"
+sleep 3
+aws cloudformation delete-stack \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --stack-name carApp-02a-db-init
+
+# Deploy CloudFront distribution and S3 bucket
 aws cloudformation deploy \
     --profile "$PROFILE" \
     --region "$REGION" \
     --stack-name carApp-04-cloudfront \
     --template-file "cf_templates/carApp_cf04_s3_cloudfront.yaml"
 
-BUCKET_DOMAIN=$(aws cloudformation describe-stacks \
-    --stack-name carApp-04-cloudfront \
-    --query "Stacks[0].Outputs[?OutputKey=='carAppBucketDomain'].OutputValue"
-    --output text)
-
-echo "Cloudfront distribution and bucket at $BUCKET_DOMAIN deployed"
-
-# Cleanup Lambda to avoid NAT gateway costs (at the end of the script as it takes time)
-echo "Now deleting lambda used for DB init - may take up to 20 min"
-sleep 5
-aws cloudformation wait stack-delete-complete \
+BUCKET_NAME=$(aws cloudformation describe-stack-resources \
     --profile "$PROFILE" \
     --region "$REGION" \
-    --stack-name carApp-02a-db-init
+    --stack-name carApp-04-cloudfront \
+    --query "StackResources[?LogicalResourceId=='carAppBucket'].PhysicalResourceId" \
+    --output text)
+
+echo "Cloudfront distribution and bucket $BUCKET_NAME deployed"
+
+# Deploy API Gateway and ALB
+aws cloudformation deploy \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --stack-name carApp-05-api \
+    --template-file "cf_templates/carApp_cf05_api_alb.yaml"
+
+# Retrieve API Gateway endpoint
+API_GW_URL=$(aws cloudformation describe-stacks \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --stack-name carApp-05-api \
+    --query "Stacks[0].Outputs[?OutputKey=='carAppApiEndpoint'].OutputValue" \
+    --output text)
+
+# Use the endpoint within Javascript
+sed -i "s|<API-GW-URL>|$API_GW_URL|g" frontend/scripts.js
+
+# copy website files to the bucket
+aws s3 sync ./frontend/ s3://$BUCKET_NAME/

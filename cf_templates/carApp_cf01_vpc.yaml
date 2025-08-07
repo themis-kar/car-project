@@ -1,11 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: VPC structure and Security Groups
 
-Parameters:
-  sourceIPaddress:
-    Description: IP range that is allowed to use EIC endpoint
-    Type: String
-
 Resources:
 
   baseVPC: 
@@ -211,26 +206,6 @@ Resources:
           FromPort: 80
           ToPort: 80
       VpcId: !Ref baseVPC
-  # security group for EC2 Instance Connect Endpoint
-  myEicEndpointSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: SG for EIC endpoint
-      GroupName: eicEndpointSG
-      VpcId: !Ref baseVPC
-      SecurityGroupIngress:
-        - CidrIp: !Ref sourceIPaddress
-          Description: allow an IP range to access EIC
-          FromPort: 22
-          ToPort: 22
-          IpProtocol: tcp
-  # instance connect endpoint
-  myEicEndpoint:
-    Type: AWS::EC2::InstanceConnectEndpoint
-    Properties:
-      SecurityGroupIds:
-        - !Ref myEicEndpointSG
-      SubnetId: !Ref appA
 
 Outputs:
 
