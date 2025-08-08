@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: RDS instance creation
+
+Resources:
+ # RDS instance for car collection
+  mainDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      BackupRetentionPeriod: 1
+      CACertificateIdentifier: rds-ca-rsa2048-g1
+      DBInstanceClass: db.t4g.micro
+      DBInstanceIdentifier: car-project-2025
+      DBSubnetGroupName: !Ref myDBsubnets
+      DeleteAutomatedBackups: true
+      EnableIAMDatabaseAuthentication: true
+      Engine: postgres
+      EngineLifecycleSupport: open-source-rds-extended-support-disabled
+      EngineVersion: "17.4"
+      ManageMasterUserPassword: true
+      MasterUsername: master_user
+      MasterUserSecret:
+        KmsKeyId: 'alias/aws/secretsmanager'
+      MultiAZ: false #temporarily disabling due to cost
+      NetworkType: IPV4
+      Port: 5432
+      PubliclyAccessible: false
+      StorageType: gp2
+      StorageEncrypted: true
+      VPCSecurityGroups:
+        - !ImportValue DBsecGroup-Id
+
+  myDBsubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets used for Multi-AZ DB
+      DBSubnetGroupName: myDB-subnet-group
+      SubnetIds: 
+        - !ImportValue dbSubA-Id
+        - !ImportValue dbSubB-Id
+
+Outputs:
+  # retrieve DB endpoint
+  DbHostname:
+    Description: The hostname of the RDS instance
+    Value: !GetAtt mainDBInstance.Endpoint.Address
+    Export:
+      Name: postgres-Endpoint
+  
+  DbSecretArn:
+    Description: The ARN of the DB secret in Secrets Manager
+    Value: !GetAtt mainDBInstance.MasterUserSecret.SecretArn
+    Export:
+      Name: postgres-SecretArn
+
+  DbInstanceArn:
+    Description: The ARN of the DB instance
+    Value: !GetAtt mainDBInstance.DBInstanceArn
+    Export:
+      Name: postgres-InstanceArn

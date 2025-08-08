@@ -1,0 +1,262 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC structure and Security Groups
+
+Resources:
+
+  baseVPC: 
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/20
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: baseVPC
+  # web tier subnets
+  webA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [0, !GetAZs ""] 
+      CidrBlock: 10.10.1.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: webSubA
+      VpcId: !Ref baseVPC
+  webB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.10.2.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: webSubB
+      VpcId: !Ref baseVPC
+  # app tier subnets
+  appA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.10.3.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: appSubA
+      VpcId: !Ref baseVPC
+  appB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.10.4.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: appSubB
+      VpcId: !Ref baseVPC
+  # DB tier subnets
+  dbA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.10.5.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: dbSubA
+      VpcId: !Ref baseVPC
+  dbB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AssignIpv6AddressOnCreation: false
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.10.6.0/24
+      EnableDns64: false
+      MapPublicIpOnLaunch: true
+      Tags: 
+        - Key: Name
+          Value: dbSubB
+      VpcId: !Ref baseVPC
+  # internet gateway and attachment to VPC
+  carAppInternetGw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: carApp Internet Gateway
+  IgwAttachement:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref carAppInternetGw
+      VpcId: !Ref baseVPC
+  # route table for public subnets & associations
+  webRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: webRouteTable
+      VpcId: !Ref baseVPC
+  webASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref webRT
+      SubnetId: !Ref webA
+  webBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref webRT
+      SubnetId: !Ref webB
+  # route from public subnets to IGW
+  routeToIgw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref carAppInternetGw
+      RouteTableId: !Ref webRT
+  # route table for private subnets & associations
+  appRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: appRouteTable
+      VpcId: !Ref baseVPC
+  appASubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref appRT
+      SubnetId: !Ref appA
+  appBSubAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref appRT
+      SubnetId: !Ref appB
+  # Elastic IP required for NAT Gateway
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  # NAT Gateway in public subnet A with EIP
+  NatGw:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      ConnectivityType: public
+      SubnetId: !Ref webA
+      Tags:
+        - Key: Name
+          Value: NAT-Gateway
+  # route from private subnets to NAT GW
+  RouteToNatGw:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGw
+      RouteTableId: !Ref appRT
+  
+  # security group for RDS instance
+  DBsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for the Multi-AZ RDS Instance
+      GroupName: postgres-secGroup
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref EC2secGroup
+          IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+      VpcId: !Ref baseVPC
+  # security group for EC2 and Lambda
+  EC2secGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EC2 instances
+      GroupName: ec2-secGroup
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref ALBsecGroup
+          IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+      VpcId: !Ref baseVPC
+  # security group for ALB
+  ALBsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for ALB
+      GroupName: alb-secGroup
+      SecurityGroupIngress:
+        - CidrIp: !GetAtt appA.CidrBlock
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: !GetAtt appB.CidrBlock
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      VpcId: !Ref baseVPC
+
+Outputs:
+
+  baseVPCId:
+    Description: The id of the VPC resource
+    Value: !Ref baseVPC
+    Export:
+      Name: baseVPC-Id
+  webAId:
+    Description: The id of web tier subnet A
+    Value: !Ref webA
+    Export:
+      Name: webSubA-Id
+  webBId:
+    Description: The id of web tier subnet B
+    Value: !Ref webB
+    Export:
+      Name: webSubB-Id
+  appAId:
+    Description: The id of app tier subnet A
+    Value: !Ref appA
+    Export:
+      Name: appSubA-Id
+  appBId:
+    Description: The id of app tier subnet B
+    Value: !Ref appB
+    Export:
+      Name: appSubB-Id
+  dbAId:
+    Description: The id of DB tier subnet A
+    Value: !Ref dbA
+    Export:
+      Name: dbSubA-Id
+  dbBId:
+    Description: The id of DB tier subnet B
+    Value: !Ref dbB
+    Export:
+      Name: dbSubB-Id
+  # Security Group Ids
+  DBsecurityGroup:
+    Description: Security group for RDS instance
+    Value: !Ref DBsecGroup
+    Export:
+      Name: DBsecGroup-Id
+  EC2securityGroup:
+    Description: Security group for EC2 instances
+    Value: !Ref EC2secGroup
+    Export:
+      Name: EC2secGroup-Id
+  ALBsecurityGroup:
+    Description: Security group for Application Load Balancer
+    Value: !Ref ALBsecGroup
+    Export:
+      Name: ALBsecGroup-Id

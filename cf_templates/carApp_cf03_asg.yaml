@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Auto Scaling Group creation
+
+Parameters:
+  # Use EC2 Amazon Linuxx 2023 AMI within Free tier
+  LatestAmiId:
+    Description: AMI for EC2
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
+Resources:
+  # IAM instance role for IAM DB auth
+  carAppInstanceIAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: EC2-RDS-role
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: EC2-IamAuth-RDS
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: IamRdsAccess
+                Effect: Allow
+                Action: "rds-db:connect"
+                Resource: !Sub 'arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/*'
+  # IAM instance Profile
+  carAppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: Ec2-Instance-Profile
+      Roles:
+        - !Ref carAppInstanceIAMRole
+
+  # Launch template
+  carAppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: EC2-template-for-car-project
+      LaunchTemplateData:
+        DisableApiTermination: true
+        IamInstanceProfile:
+          Name: !Ref carAppInstanceProfile
+        ImageId: !Ref LatestAmiId
+        InstanceType: t2.micro
+        SecurityGroupIds:
+          - !ImportValue EC2secGroup-Id
+        UserData:
+          Fn::Base64:
+            Fn::Sub:
+              - |
+                #!/bin/bash -xe
+
+                dnf update -y
+                dnf install -y python3 wget
+                wget --https-only --retry-connrefused --waitretry=1 --tries=3 \
+                  --timeout=15 -o /var/log/user_data_download.log \
+                  -O /tmp/user_data.sh https://raw.githubusercontent.com/themis-kar/car-project/refs/heads/main/backend/ec2_user_data.sh
+                chmod +x /tmp/user_data.sh
+                sudo -u ec2-user /tmp/user_data.sh ${AWS::Region}
+
+                cat > /etc/systemd/system/carApp.service <<EOF
+                [Unit]
+                Description=Gunicorn instance to serve my car-app
+                After=network.target
+
+                [Service]
+                User=ec2-user
+                Group=ec2-user
+                WorkingDirectory=/home/ec2-user/car-app-2025
+                Environment="PATH=/home/ec2-user/car-app-2025/.venv/bin"
+                Environment="REGION=${AWS::Region}"
+                Environment="DB_ENDPOINT=${DbHost}"
+                ExecStart=/home/ec2-user/car-app-2025/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8080 app:app
+
+                Restart=always
+
+                [Install]
+                WantedBy=multi-user.target
+                EOF
+
+                systemctl daemon-reload
+                systemctl start carApp.service
+                systemctl enable carApp.service
+                
+                /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource carAppAutoScalingGroup --region ${AWS::Region}
+              - DbHost: !ImportValue postgres-Endpoint
+  # Auto Scaling Group
+  carAppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT10M
+    Properties:
+      AutoScalingGroupName: car-app-ASG
+      AvailabilityZoneDistribution:
+        CapacityDistributionStrategy: balanced-only
+      DefaultInstanceWarmup: 60
+      MinSize: 2
+      DesiredCapacity: 2
+      MaxSize: 6
+      HealthCheckGracePeriod: 30
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref carAppLaunchTemplate
+        Version: !GetAtt carAppLaunchTemplate.LatestVersionNumber
+      TargetGroupARNs:
+        - !Ref carAppTargetGroup
+      VPCZoneIdentifier:
+        - !ImportValue appSubA-Id
+        - !ImportValue appSubB-Id  
+  # Target Group to be used by ELB
+  carAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /ping
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 4
+      HealthCheckIntervalSeconds: 10
+      HealthyThresholdCount: 3
+      IpAddressType: ipv4
+      Matcher:
+        HttpCode: 200
+      Name: car-app-target-group-01
+      Port: 8080
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !ImportValue baseVPC-Id
+  # Dynamic Scaling Policy
+  carAppScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref carAppAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 60
+
+Outputs:
+  # Export target group ARN to be used by ALB Listener
+  carAppTargetGroupArn:
+    Description: The ARN of the Target Group for ELB
+    Value: !GetAtt carAppTargetGroup.TargetGroupArn
+    Export:
+      Name: carAppTargetGroup-Arn

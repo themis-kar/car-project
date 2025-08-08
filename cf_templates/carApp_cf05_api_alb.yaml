@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Application Load Balancer and API Gateway
+
+Resources:
+  # Load Balancer
+  carAppLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      IpAddressType: ipv4
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: 30
+        - Key: routing.http.desync_mitigation_mode
+          Value: defensive
+        - Key: routing.http.drop_invalid_header_fields.enabled
+          Value: true
+        - Key: routing.http.xff_header_processing.mode
+          Value: remove
+      Scheme: internal
+      SecurityGroups:
+        - !ImportValue ALBsecGroup-Id
+      Subnets:
+        - !ImportValue appSubA-Id
+        - !ImportValue appSubB-Id
+  # Listener
+  myAlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !ImportValue carAppTargetGroup-Arn
+      LoadBalancerArn: !Ref carAppLoadBalancer
+      Port: 80
+      Protocol: HTTP
+  
+  # API Gateway
+  carAppApiGw:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Description: Manage API calls to your car application
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - OPTIONS
+        AllowOrigins:
+          - !Join ["://", [https, !ImportValue cloudFront-Endpoint]]
+        MaxAge: 600
+      DisableExecuteApiEndpoint: false
+      IpAddressType: ipv4
+      Name: car-app-ApiGw
+      ProtocolType: HTTP
+  # Stage for API
+  carAppDefaultStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      Description: Default stage for my car app API
+      ApiId: !Ref carAppApiGw
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 2
+        ThrottlingRateLimit: 5
+      StageName: $default
+  # Routes
+  viewCarsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref carAppApiGw
+      AuthorizationType: NONE
+      OperationName: get_all_cars
+      RouteKey: GET /cars/view_all
+      Target: !Sub integrations/${apiGwIntegrationToAlb}
+
+  addCarRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref carAppApiGw
+      AuthorizationType: NONE
+      OperationName: add_car
+      RouteKey: POST /car
+      Target: !Sub integrations/${apiGwIntegrationToAlb}
+
+  modifyCarRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref carAppApiGw
+      AuthorizationType: NONE
+      OperationName: modify_car
+      RouteKey: PATCH /car/{car_id}
+      Target: !Sub integrations/${apiGwIntegrationToAlb}
+
+  deleteCarRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref carAppApiGw
+      AuthorizationType: NONE
+      OperationName: delete_car
+      RouteKey: DELETE /car/{car_id}
+      Target: !Sub integrations/${apiGwIntegrationToAlb}
+
+  filterCarsRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref carAppApiGw
+      AuthorizationType: NONE
+      OperationName: filter_cars
+      RouteKey: GET /cars
+      Target: !Sub integrations/${apiGwIntegrationToAlb}
+  # VPC link for private integration
+  apiGwAlbVpcLink:
+    Type: AWS::ApiGatewayV2::VpcLink
+    Properties:
+      Name: car-app-VpcLink
+      SubnetIds:
+        - !ImportValue appSubA-Id
+        - !ImportValue appSubB-Id
+  # Private integration of API Gw to ALB
+  apiGwIntegrationToAlb:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref carAppApiGw
+      ConnectionId: !Ref apiGwAlbVpcLink
+      ConnectionType: VPC_LINK
+      Description: Integrate API Gateway to Load Balancer
+      IntegrationType: HTTP_PROXY
+      IntegrationMethod: ANY
+      IntegrationUri: !Ref myAlbListener
+      PayloadFormatVersion: 1.0
+
+Outputs:
+  # retrieve API endpoint
+  carAppApiEndpoint:
+    Description: The endpoint of the HTTP API
+    Value: !GetAtt carAppApiGw.ApiEndpoint

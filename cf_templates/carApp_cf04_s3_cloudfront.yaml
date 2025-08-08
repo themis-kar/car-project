@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: S3 Bucket and CloudFront Distribution
+
+Resources:
+  # S3 Bucket with webpage files
+  carAppBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: false
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      ObjectLockEnabled: false
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  # Bucket Policy
+  carAppBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref carAppBucket
+      PolicyDocument:
+        {
+          "Version": "2012-10-17",
+          "Id": "PolicyForCloudFrontAccess",
+          "Statement": [
+            {
+              "Sid": "AllowCloudFrontService",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "cloudfront.amazonaws.com"
+              },
+              "Action": "s3:GetObject",
+              "Resource": !Sub "${carAppBucket.Arn}/*",
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${carAppCloudFrontDist}"
+                }
+              }
+            }
+          ]
+        } 
+  # CloudFront Distribution
+  carAppCloudFrontDist:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: Serve app frontend over HTTPS
+        ConnectionMode: direct
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 #id for managed cached optimized
+          TargetOriginId: myCarAppBucket
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: false # created as disabled until we upload the files in the bucket
+        HttpVersion: http2
+        IPV6Enabled: false
+        Origins:
+          - DomainName: !GetAtt carAppBucket.RegionalDomainName
+            Id: myCarAppBucket
+            OriginAccessControlId: !GetAtt OacForCarApp.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+              OriginReadTimeout: 10
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Name
+          Value: car-app-frontend-delivery
+# OAC Control for the bucket
+  OacForCarApp:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Description: OAC config for S3 carApp bucket
+        Name: CloudFront-to-CarAppBucket-OAC
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+Outputs:
+  # CloudFront Distribution domain
+  carAppCloudFrontDistDomain:
+    Description: The domain of the CloudFront Distribution
+    Value: !GetAtt carAppCloudFrontDist.DomainName
+    Export:
+      Name: cloudFront-Endpoint

@@ -1,0 +1,225 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Initialization of RDS DB using Lambda
+
+Parameters:
+
+  LambdaLayerArn:
+    Description: The ARN of the Lambda Layer that contains psycopg2
+    Type: String
+
+Resources:
+  # Lambda execution role
+  myLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Lambda-exec-role
+      MaxSessionDuration: 14400
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: 
+        - PolicyName: SM-KMS-RDS-Access
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: SecretsAccess
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !ImportValue postgres-SecretArn
+              - Sid: KmsAccess
+                Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:Decrypt
+                Resource: "*"
+              - Sid: RdsHealthCheck
+                Effect: Allow
+                Action:
+                  - rds:DescribeDBInstances #use to check if DB running
+                Resource: !ImportValue postgres-InstanceArn
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+
+  myDbInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: postgresInit
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          REGION: !Ref AWS::Region
+          DB_HOST: !ImportValue postgres-Endpoint
+          SECRET_ARN: !ImportValue postgres-SecretArn
+          DB_INSTANCE: !ImportValue postgres-InstanceArn
+          DB_NAME: postgres
+          DB_ADMIN: master_user
+      Code:
+        ZipFile: | #code goes here
+          import json
+          import logging
+          import urllib.request
+          import boto3
+          import psycopg2
+          from os import getenv
+
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          def send_response(event, context, response_status, response_data, physical_resource_id=None, reason=None):
+              response_url = event['ResponseURL']
+              
+              logger.info(f"Sending response to CloudFormation at {response_url}")
+              
+              response_body = {
+                  'Status': response_status,
+                  'Reason': reason or f'See the details in CloudWatch Log Stream: {context.log_stream_name}',
+                  'PhysicalResourceId': physical_resource_id or context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              }
+
+              json_response_body = json.dumps(response_body)
+
+              headers = {
+                  'content-type': '',
+                  'content-length': str(len(json_response_body))
+              }
+
+              try:
+                  req = urllib.request.Request(
+                      url=response_url,
+                      data=json_response_body.encode('utf-8'),
+                      headers=headers,
+                      method='PUT'
+                  )
+                  with urllib.request.urlopen(req) as response:
+                      logger.info(f"CloudFormation response status: {response.status}")
+              except Exception as e:
+                  logger.error(f"send_response failed: {e}")
+
+          def check_rds_health(db_instance_identifier):
+              rds = boto3.client('rds')
+
+              try:
+                  response = rds.describe_db_instances(DBInstanceIdentifier=db_instance_identifier)
+                  db_instance = response['DBInstances'][0]
+                  status = db_instance['DBInstanceStatus']
+                  logger.info(f"RDS instance '{db_instance_identifier}' status: {status}")
+                  
+                  if status == 'available':
+                      return True
+                  else:
+                      return False
+              except Exception as e:
+                  logger.error(f"Error checking RDS status: {e}")
+                  return False
+
+          def get_secret(secret_arn, region):
+              client = boto3.client('secretsmanager', region_name = region)
+
+              try:
+                  response = client.get_secret_value(SecretId=secret_arn)
+                  if "SecretString" in response:
+                      secret = json.loads(response["SecretString"])
+                      return secret.get("password")
+                  else:
+                      raise ValueError("SecretString not found in secret response.")
+              except client.exceptions.ResourceNotFoundException:
+                  print(f"Secret not found: {secret_arn}")
+                  raise
+              except client.exceptions.AccessDeniedException:
+                  print("Access denied. Check IAM permissions.")
+                  raise
+              except Exception as e:
+                  print(f"Unexpected error: {e}")
+                  raise
+
+          def lambda_handler(event, context):
+              logger.info(f"Received event: {json.dumps(event)}")
+
+              try:
+                  if event['RequestType'].lower() == 'create':
+                      db_instance_arn = getenv('DB_INSTANCE')
+                      db_status = check_rds_health(db_instance_arn)
+                      if db_status == False:
+                          raise Exception("DB Instance not available")
+                      
+                      db_password = get_secret(getenv('SECRET_ARN'), getenv('REGION'))
+                      conn = psycopg2.connect(
+                          host=getenv('DB_HOST'),
+                          port=5432,
+                          dbname=getenv('DB_NAME'),
+                          user=getenv('DB_ADMIN'),
+                          password=db_password
+                      )
+
+                      cur = conn.cursor()
+                      cur.execute("""
+                        CREATE TABLE cars (
+                          plate varchar(8) PRIMARY KEY,
+                          make text,
+                          model text,
+                          year smallint,
+                          colour text,
+                          mileage int,
+                          status text CHECK (status IN ('TOTALLED', 'NEEDS_REPAIR', 'ACCEPTABLE'))
+                        );
+                      """)
+                      cur.execute("CREATE USER db_iam_user;")
+                      cur.execute("GRANT rds_iam TO db_iam_user;")
+                      cur.execute("GRANT CONNECT ON DATABASE postgres TO db_iam_user;")
+                      cur.execute("GRANT USAGE ON SCHEMA public TO db_iam_user;")
+                      cur.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO db_iam_user;")
+                      conn.commit()
+
+                      cur.close()
+                      conn.close()
+
+                  # Return SUCCESS response
+                  response_data = {
+                      "Message": "Custom resource executed successfully"
+                  }
+                  send_response(event, context, 'SUCCESS', response_data)
+              except Exception as e:
+                  logger.error(f"Exception: {e}")
+                  send_response(event, context, 'FAILED', {}, reason=str(e))
+      Description: Function that initiliazes the RDS PostgreSQL DB
+      EphemeralStorage:
+        Size: 512
+      Handler: index.lambda_handler
+      MemorySize: 128
+      PackageType: Zip
+      Layers:
+        - !Ref LambdaLayerArn
+      LoggingConfig:
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+        SystemLogLevel: INFO
+      RecursiveLoop: Terminate
+      Role: !GetAtt myLambdaIamRole.Arn
+      Runtime: python3.12
+      Timeout: 120
+      VpcConfig: 
+        Ipv6AllowedForDualStack: false
+        SecurityGroupIds:
+          - !ImportValue EC2secGroup-Id
+        SubnetIds:
+          - !ImportValue appSubA-Id
+  
+  DbInitTrigger:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: myDbInitFunction
+    Properties:
+      ServiceTimeout: 180
+      ServiceToken: !GetAtt myDbInitFunction.Arn

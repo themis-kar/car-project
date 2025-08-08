@@ -1,0 +1,137 @@
+/* Reset styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* General body styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f2f2f2;
+    color: #333;
+    padding: 20px;
+}
+
+/* Header styling */
+header h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+/* Intro section */
+#intro {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+#intro h2 {
+    font-size: 1.3em;
+    margin-bottom: 10px;
+}
+
+/* Navigation bar */
+#navbar {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+}
+
+#navbar button {
+    padding: 10px 20px;
+    background-color: #3498db;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: normal;
+    box-shadow: 0 4px #2980b9;
+    transition: all 0.1s ease-in-out;
+    position: relative;
+}
+
+/* Hover effect (optional for interactivity) */
+#navbar button:hover {
+    background-color: #2980b9;
+}
+
+/* Active/clicked effect */
+#navbar button:active {
+    top: 2px;
+    box-shadow: 0 2px #1f6391;
+}
+
+/* Main content area */
+#content-area {
+    background-color: white;
+    padding: 20px;
+    border: 1px solid #b6b6b6;
+    border-radius: 5px;
+    min-height: 100px;
+}
+
+/* Form Overlay */
+#form-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* dark backdrop */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#form-overlay form {
+    background-color: white;
+    padding: 20px 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 300px;
+}
+
+#form-overlay.hidden {
+    display: none;
+}
+
+#form-overlay button {
+    margin-right: 10px;
+}
+
+/* Banner informing user of success or failure */
+#form-banner {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 1rem;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease-in-out;
+}
+
+#form-banner.success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+#form-banner.error {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+#form-banner.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
